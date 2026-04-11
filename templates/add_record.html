@@ -1,0 +1,256 @@
+{% extends 'base.html' %}
+{% block title %}{% if record %}整備記録を編集{% else %}整備記録を追加{% endif %} | {{ car.name }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-9 col-xl-8">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-primary text-white">
+        <h5 class="mb-0">
+          <i class="bi bi-{% if record %}pencil{% else %}plus-circle{% endif %} me-2"></i>
+          {% if record %}整備記録を編集{% else %}整備記録を追加{% endif %}
+          <small class="ms-2 opacity-75">— {{ car.name }}</small>
+        </h5>
+      </div>
+      <div class="card-body">
+        <form method="post" enctype="multipart/form-data" id="recordForm" novalidate>
+
+          <!-- ===== 基本情報 ===== -->
+          <h6 class="section-title mb-3"><i class="bi bi-info-circle me-2"></i>基本情報</h6>
+          <div class="row g-3 mb-4">
+
+            <!-- 整備年月日 -->
+            <div class="col-sm-6 col-md-4">
+              <label class="form-label fw-semibold" for="date">
+                整備年月日 <span class="text-danger">*</span>
+              </label>
+              <input type="date" id="date" name="date" class="form-control" required
+                     value="{{ record.date.strftime('%Y-%m-%d') if record and record.date else today }}">
+            </div>
+
+            <!-- 整備種別 -->
+            <div class="col-sm-6 col-md-4">
+              <label class="form-label fw-semibold" for="type">
+                整備種別 <span class="text-danger">*</span>
+              </label>
+              <select id="type" name="type" class="form-select" required>
+                <option value="">-- 選択してください --</option>
+                {% for t in maintenance_types %}
+                <option value="{{ t }}"
+                  {% if record and record.type == t %}selected
+                  {% elif not record and t == '給油' %}selected{% endif %}>
+                  {{ t }}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <!-- メーター距離 -->
+            <div class="col-sm-6 col-md-4">
+              <label class="form-label fw-semibold" for="odometer">メーター距離 (km)</label>
+              <div class="input-group">
+                <input type="number" id="odometer" name="odometer" class="form-control" min="0"
+                       placeholder="例: 35000"
+                       value="{{ record.odometer if record and record.odometer is not none else '' }}">
+                <span class="input-group-text">km</span>
+              </div>
+            </div>
+
+            <!-- 料金 -->
+            <div class="col-sm-6 col-md-4">
+              <label class="form-label fw-semibold" for="price">料金 (円)</label>
+              <div class="input-group">
+                <span class="input-group-text">¥</span>
+                <input type="number" id="price" name="price" class="form-control" min="0"
+                       placeholder="例: 5000"
+                       value="{{ record.price if record and record.price is not none else '' }}">
+              </div>
+            </div>
+
+            <!-- データ保存先 -->
+            <div class="col-sm-12 col-md-8">
+              <label class="form-label fw-semibold" for="save_path">データ保存先</label>
+              <input type="text" id="save_path" name="save_path" class="form-control"
+                     placeholder="例: C:\Documents\CarMaintenance\2024"
+                     value="{{ record.save_path if record and record.save_path else '' }}">
+              <div class="form-text">このレコードに関連するファイルの保存場所を記録します。</div>
+            </div>
+
+          </div>
+
+          <!-- ===== 給油情報（給油のとき表示） ===== -->
+          <div id="fuelSection" class="mb-4" style="display:none;">
+            <h6 class="section-title mb-3"><i class="bi bi-fuel-pump me-2"></i>給油情報</h6>
+            <div class="row g-3">
+
+              <!-- 給油量 -->
+              <div class="col-sm-6 col-md-4">
+                <label class="form-label fw-semibold" for="fuel_amount">給油量 (L)</label>
+                <div class="input-group">
+                  <input type="number" id="fuel_amount" name="fuel_amount" class="form-control"
+                         min="0" step="0.01" placeholder="例: 30.5"
+                         value="{{ record.fuel_amount if record and record.fuel_amount is not none else '' }}">
+                  <span class="input-group-text">L</span>
+                </div>
+              </div>
+
+              <!-- 給油状態 -->
+              <div class="col-sm-6 col-md-4">
+                <label class="form-label fw-semibold" for="fuel_status">給油状態</label>
+                <select id="fuel_status" name="fuel_status" class="form-select">
+                  <option value="">-- 選択 --</option>
+                  <option value="満タン"   {% if record and record.fuel_status == '満タン' %}selected{% endif %}>満タン</option>
+                  <option value="非満タン" {% if record and record.fuel_status == '非満タン' %}selected{% endif %}>非満タン</option>
+                </select>
+              </div>
+
+              <!-- 燃費（読み取り専用） -->
+              <div class="col-sm-6 col-md-4">
+                <label class="form-label fw-semibold">燃費 (km/L)</label>
+                <div class="input-group">
+                  <input type="text" class="form-control bg-light" id="fuelEfficiencyDisplay" readonly
+                         value="{{ '%.2f'|format(record.fuel_efficiency) if record and record.fuel_efficiency else '自動計算（保存後）' }}">
+                  <span class="input-group-text">km/L</span>
+                </div>
+                <div class="form-text">満タン給油時に前回満タンとの差分から自動計算されます。</div>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- ===== オイル交換情報（オイル交換のとき表示） ===== -->
+          <div id="oilSection" class="mb-4" style="display:none;">
+            <h6 class="section-title mb-3"><i class="bi bi-droplet-half me-2"></i>オイル交換情報</h6>
+            <div class="row g-3">
+              <div class="col-sm-6">
+                <div class="form-check form-switch mt-2">
+                  <input class="form-check-input" type="checkbox" id="oil_element_changed"
+                         name="oil_element_changed" value="1"
+                         {% if record and record.oil_element_changed %}checked{% endif %}>
+                  <label class="form-check-label fw-semibold" for="oil_element_changed">
+                    オイルエレメント（フィルター）も交換する
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ===== 摘要・メモ ===== -->
+          <h6 class="section-title mb-3"><i class="bi bi-chat-left-text me-2"></i>摘要・メモ</h6>
+          <div class="row g-3 mb-4">
+            <div class="col-md-6">
+              <label class="form-label fw-semibold" for="summary">摘要</label>
+              <textarea id="summary" name="summary" class="form-control" rows="3"
+                        placeholder="整備の概要を入力してください">{{ record.summary if record and record.summary else '' }}</textarea>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold" for="memo">メモ</label>
+              <textarea id="memo" name="memo" class="form-control" rows="3"
+                        placeholder="自由にメモを入力できます">{{ record.memo if record and record.memo else '' }}</textarea>
+            </div>
+          </div>
+
+          <!-- ===== 写真 ===== -->
+          <h6 class="section-title mb-3"><i class="bi bi-camera me-2"></i>写真</h6>
+
+          {% if record and record.photos %}
+          <div class="mb-3">
+            <div class="small fw-semibold text-muted mb-2">現在の写真（削除したい場合はチェックを入れてください）</div>
+            <div class="row g-2" id="existingPhotos">
+              {% for photo in record.photos %}
+              <div class="col-6 col-sm-4 col-md-3" id="photo-container-{{ photo.id }}">
+                <div class="position-relative photo-thumb-container border rounded overflow-hidden">
+                  <img src="{{ url_for('uploaded_file', filename=photo.filename) }}"
+                       class="img-fluid photo-thumb" style="height:100px;object-fit:cover;width:100%;"
+                       alt="{{ photo.original_name }}">
+                  <div class="position-absolute top-0 start-0 p-1 bg-white bg-opacity-75 rounded m-1">
+                    <input class="form-check-input" type="checkbox"
+                           name="delete_photos" value="{{ photo.id }}"
+                           id="del_{{ photo.id }}"
+                           onchange="togglePhotoDelete({{ photo.id }}, this.checked)">
+                    <label class="form-check-label small text-danger" for="del_{{ photo.id }}">削除</label>
+                  </div>
+                </div>
+                <div class="text-truncate small text-muted mt-1">{{ photo.original_name }}</div>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+          {% endif %}
+
+          <div class="mb-4">
+            <label class="form-label fw-semibold" for="photos">
+              {% if record and record.photos %}追加する写真{% else %}写真{% endif %}
+            </label>
+            <input type="file" id="photos" name="photos" class="form-control"
+                   multiple accept="image/*" onchange="previewPhotos(this)">
+            <div class="form-text">複数枚選択できます。対応形式: JPG, PNG, GIF, WEBP, HEIC, BMP</div>
+            <div id="photoPreview" class="row g-2 mt-2"></div>
+          </div>
+
+          <!-- ===== Buttons ===== -->
+          <hr>
+          <div class="d-flex gap-2 justify-content-end">
+            <a href="{{ url_for('car_detail', car_id=car.id) }}" class="btn btn-secondary">
+              <i class="bi bi-x-lg me-1"></i>キャンセル
+            </a>
+            <button type="submit" class="btn btn-primary">
+              <i class="bi bi-check-lg me-1"></i>{% if record %}更新{% else %}保存{% endif %}
+            </button>
+          </div>
+
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const FUEL_TYPES    = ['給油'];
+const OIL_TYPES     = ['オイル交換'];
+const typeSelect    = document.getElementById('type');
+const fuelSection   = document.getElementById('fuelSection');
+const oilSection    = document.getElementById('oilSection');
+
+function updateSections() {
+  const v = typeSelect.value;
+  fuelSection.style.display = FUEL_TYPES.includes(v)  ? '' : 'none';
+  oilSection.style.display  = OIL_TYPES.includes(v)   ? '' : 'none';
+}
+
+typeSelect.addEventListener('change', updateSections);
+updateSections(); // initial
+
+// Photo preview
+function previewPhotos(input) {
+  const container = document.getElementById('photoPreview');
+  container.innerHTML = '';
+  Array.from(input.files).forEach(file => {
+    if (!file.type.startsWith('image/')) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      const col = document.createElement('div');
+      col.className = 'col-6 col-sm-4 col-md-3';
+      col.innerHTML = `
+        <div class="border rounded overflow-hidden">
+          <img src="${e.target.result}" class="img-fluid" style="height:100px;object-fit:cover;width:100%;">
+        </div>
+        <div class="text-truncate small text-muted mt-1">${file.name}</div>
+      `;
+      container.appendChild(col);
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+// Existing photo delete toggle
+function togglePhotoDelete(photoId, checked) {
+  const container = document.getElementById(`photo-container-${photoId}`);
+  if (container) {
+    container.style.opacity = checked ? '0.4' : '1';
+  }
+}
+</script>
+{% endblock %}

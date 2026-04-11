@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+{% block title %}{% if car %}車両編集{% else %}車両追加{% endif %} | 自動車整備記録{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-6 col-lg-5">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-primary text-white">
+        <h5 class="mb-0">
+          <i class="bi bi-{% if car %}pencil{% else %}plus-circle{% endif %} me-2"></i>
+          {% if car %}車両名を編集{% else %}車両を追加{% endif %}
+        </h5>
+      </div>
+      <div class="card-body">
+        <form method="post">
+          <div class="mb-3">
+            <label class="form-label fw-semibold" for="name">
+              自動車名 <span class="text-danger">*</span>
+            </label>
+            <input type="text" id="name" name="name" class="form-control"
+                   value="{{ car.name if car else '' }}"
+                   placeholder="例: トヨタ プリウス" required autofocus maxlength="100">
+            <div class="form-text">他の車両と区別できる名前を入力してください。</div>
+          </div>
+          <div class="d-flex gap-2 justify-content-end">
+            <a href="{{ url_for('index') }}" class="btn btn-secondary">キャンセル</a>
+            <button type="submit" class="btn btn-primary">
+              <i class="bi bi-check-lg me-1"></i>{% if car %}更新{% else %}追加{% endif %}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

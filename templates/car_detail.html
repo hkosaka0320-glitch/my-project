@@ -1,0 +1,343 @@
+{% extends 'base.html' %}
+{% block title %}{{ car.name }} | 自動車整備記録{% endblock %}
+
+{% block content %}
+<div class="row g-3">
+
+  <!-- ===== Car header ===== -->
+  <div class="col-12">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+      <h2 class="mb-0">
+        <i class="bi bi-car-front-fill me-2 text-primary"></i>{{ car.name }}
+        <small class="text-muted fs-6 ms-2">整備記録シート</small>
+      </h2>
+      <div class="d-flex gap-2 flex-wrap">
+        <a href="{{ url_for('add_record', car_id=car.id) }}" class="btn btn-success btn-sm">
+          <i class="bi bi-plus-lg me-1"></i>整備記録追加
+        </a>
+        <a href="{{ url_for('edit_car', car_id=car.id) }}" class="btn btn-outline-secondary btn-sm">
+          <i class="bi bi-pencil me-1"></i>車両編集
+        </a>
+        <a href="{{ url_for('export_car', car_id=car.id) }}" class="btn btn-outline-success btn-sm">
+          <i class="bi bi-file-earmark-excel me-1"></i>Excel出力
+        </a>
+        <form method="post" action="{{ url_for('delete_car', car_id=car.id) }}"
+              onsubmit="return confirm('「{{ car.name }}」とすべての整備記録を削除しますか？')">
+          <button class="btn btn-outline-danger btn-sm" type="submit">
+            <i class="bi bi-trash me-1"></i>車両削除
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Summary cards ===== -->
+  <div class="col-sm-6 col-lg-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body text-center">
+        <div class="display-6 fw-bold text-primary">
+          {% if chart_data %}{{ chart_data[-1].odometer|default('—') | string | replace('None','—') }}{% else %}—{% endif %}
+        </div>
+        <div class="text-muted small mt-1"><i class="bi bi-speedometer2 me-1"></i>最新走行距離 (km)</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body text-center">
+        <div class="display-6 fw-bold text-success">
+          {% if latest_efficiency %}{{ latest_efficiency }}{% else %}—{% endif %}
+        </div>
+        <div class="text-muted small mt-1"><i class="bi bi-fuel-pump me-1"></i>最新燃費 (km/L)</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="card border-0 shadow-sm h-100
+      {% if oil_distance is not none and oil_distance > 4000 %}border-danger{% elif oil_distance is not none and oil_distance > 3000 %}border-warning{% endif %}">
+      <div class="card-body text-center">
+        <div class="display-6 fw-bold
+          {% if oil_distance is not none and oil_distance > 4000 %}text-danger
+          {% elif oil_distance is not none and oil_distance > 3000 %}text-warning
+          {% else %}text-info{% endif %}">
+          {% if oil_distance is not none %}{{ '{:,}'.format(oil_distance) }}{% else %}—{% endif %}
+        </div>
+        <div class="text-muted small mt-1">
+          <i class="bi bi-droplet-half me-1"></i>オイル交換後の走行距離 (km)
+          {% if oil_distance is not none and oil_distance > 4000 %}
+            <span class="badge bg-danger ms-1">要交換</span>
+          {% elif oil_distance is not none and oil_distance > 3000 %}
+            <span class="badge bg-warning text-dark ms-1">要注意</span>
+          {% endif %}
+        </div>
+        {% if last_oil %}
+        <div class="text-muted" style="font-size:0.75rem;">最終交換: {{ last_oil.date.strftime('%Y/%m/%d') }}</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body text-center">
+        <div class="display-6 fw-bold text-secondary">{{ records|length }}</div>
+        <div class="text-muted small mt-1"><i class="bi bi-list-check me-1"></i>整備記録件数</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Fuel efficiency chart ===== -->
+  {% if chart_data|length >= 2 %}
+  <div class="col-12 col-xl-8">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white fw-semibold">
+        <i class="bi bi-graph-up-arrow me-2 text-success"></i>燃費推移グラフ
+      </div>
+      <div class="card-body">
+        <canvas id="fuelChart" height="100"></canvas>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-xl-4">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-white fw-semibold">
+        <i class="bi bi-table me-2 text-primary"></i>燃費データ
+      </div>
+      <div class="card-body p-0" style="max-height:320px; overflow-y:auto;">
+        <table class="table table-sm table-striped mb-0 small">
+          <thead class="table-dark sticky-top">
+            <tr>
+              <th>日付</th>
+              <th class="text-end">走行距離</th>
+              <th class="text-end">燃費</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for d in chart_data|reverse %}
+            <tr>
+              <td>{{ d.date }}</td>
+              <td class="text-end">{{ '{:,}'.format(d.odometer) }}</td>
+              <td class="text-end fw-bold text-success">{{ d.efficiency }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- ===== Records table ===== -->
+  <div class="col-12">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <span class="fw-semibold"><i class="bi bi-journal-text me-2 text-primary"></i>整備記録一覧</span>
+        <!-- Type filter -->
+        <div class="d-flex align-items-center gap-2">
+          <label class="small text-muted mb-0">種別フィルター:</label>
+          <select id="typeFilter" class="form-select form-select-sm" style="width:auto;">
+            <option value="">すべて</option>
+            {% for t in maintenance_types %}
+            <option value="{{ t }}">{{ t }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="card-body p-0">
+        {% if not records %}
+        <div class="text-center py-5 text-muted">
+          <i class="bi bi-inbox display-4"></i>
+          <p class="mt-2">整備記録がありません。「整備記録追加」から登録してください。</p>
+        </div>
+        {% else %}
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0 small" id="recordsTable">
+            <thead class="table-dark">
+              <tr>
+                <th style="width:100px;">整備年月日</th>
+                <th style="width:110px;">整備種別</th>
+                <th class="text-end" style="width:80px;">給油量(L)</th>
+                <th class="text-end" style="width:80px;">料金(円)</th>
+                <th class="text-end" style="width:100px;">メーター(km)</th>
+                <th class="text-end" style="width:90px;">燃費(km/L)</th>
+                <th style="width:80px;">給油状態</th>
+                <th class="text-end" style="width:120px;">オイル後距離(km)</th>
+                <th style="width:80px;">エレメント</th>
+                <th>摘要 / メモ</th>
+                <th style="width:70px;">写真</th>
+                <th style="width:90px;">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in records %}
+              {% set oil_d = r.oil_distance_at_record() %}
+              <tr class="record-row" data-type="{{ r.type }}">
+                <td>{{ r.date.strftime('%Y/%m/%d') }}</td>
+                <td>
+                  <span class="badge type-badge-{{ r.type }}">{{ r.type }}</span>
+                </td>
+                <td class="text-end">{% if r.fuel_amount %}{{ r.fuel_amount }}{% endif %}</td>
+                <td class="text-end">{% if r.price %}¥{{ '{:,}'.format(r.price) }}{% endif %}</td>
+                <td class="text-end">{% if r.odometer %}{{ '{:,}'.format(r.odometer) }}{% endif %}</td>
+                <td class="text-end fw-bold {% if r.fuel_efficiency %}text-success{% endif %}">
+                  {% if r.fuel_efficiency %}{{ r.fuel_efficiency }}{% endif %}
+                </td>
+                <td>
+                  {% if r.fuel_status %}
+                  <span class="badge {% if r.fuel_status == '満タン' %}bg-info text-dark{% else %}bg-secondary{% endif %}">
+                    {{ r.fuel_status }}
+                  </span>
+                  {% endif %}
+                </td>
+                <td class="text-end {% if oil_d and oil_d > 4000 %}text-danger fw-bold{% elif oil_d and oil_d > 3000 %}text-warning fw-bold{% endif %}">
+                  {% if oil_d is not none %}{{ '{:,}'.format(oil_d) }}{% endif %}
+                </td>
+                <td class="text-center">
+                  {% if r.type == 'オイル交換' and r.oil_element_changed %}
+                  <i class="bi bi-check-circle-fill text-success"></i>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if r.summary %}<div class="text-truncate" style="max-width:180px;" title="{{ r.summary }}">{{ r.summary }}</div>{% endif %}
+                  {% if r.memo %}<div class="text-muted text-truncate" style="max-width:180px;" title="{{ r.memo }}"><small>{{ r.memo }}</small></div>{% endif %}
+                </td>
+                <td class="text-center">
+                  {% if r.photos %}
+                  <a href="#photos-{{ r.id }}" data-bs-toggle="modal" class="btn btn-outline-secondary btn-sm py-0 px-1">
+                    <i class="bi bi-images"></i> {{ r.photos|length }}
+                  </a>
+                  {% endif %}
+                </td>
+                <td>
+                  <div class="d-flex gap-1">
+                    <a href="{{ url_for('edit_record', car_id=car.id, record_id=r.id) }}"
+                       class="btn btn-outline-primary btn-sm py-0 px-1" title="編集">
+                      <i class="bi bi-pencil"></i>
+                    </a>
+                    <form method="post"
+                          action="{{ url_for('delete_record', car_id=car.id, record_id=r.id) }}"
+                          onsubmit="return confirm('この記録を削除しますか？')">
+                      <button class="btn btn-outline-danger btn-sm py-0 px-1" type="submit" title="削除">
+                        <i class="bi bi-trash"></i>
+                      </button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+</div><!-- /row -->
+
+<!-- ===== Photo modals ===== -->
+{% for r in records %}
+{% if r.photos %}
+<div class="modal fade" id="photos-{{ r.id }}" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="bi bi-images me-2"></i>{{ r.date.strftime('%Y/%m/%d') }} {{ r.type }} — 写真
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="carousel-{{ r.id }}" class="carousel slide" data-bs-ride="false">
+          <div class="carousel-inner">
+            {% for photo in r.photos %}
+            <div class="carousel-item {% if loop.first %}active{% endif %}">
+              <img src="{{ url_for('uploaded_file', filename=photo.filename) }}"
+                   class="d-block w-100 rounded" style="max-height:500px;object-fit:contain;"
+                   alt="{{ photo.original_name }}">
+              <div class="text-center text-muted small mt-1">{{ photo.original_name }}</div>
+            </div>
+            {% endfor %}
+          </div>
+          {% if r.photos|length > 1 %}
+          <button class="carousel-control-prev" type="button" data-bs-target="#carousel-{{ r.id }}" data-bs-slide="prev">
+            <span class="carousel-control-prev-icon bg-secondary rounded-circle" style="padding:20px;"></span>
+          </button>
+          <button class="carousel-control-next" type="button" data-bs-target="#carousel-{{ r.id }}" data-bs-slide="next">
+            <span class="carousel-control-next-icon bg-secondary rounded-circle" style="padding:20px;"></span>
+          </button>
+          <div class="text-center mt-2">
+            {% for photo in r.photos %}
+            <button type="button" data-bs-target="#carousel-{{ r.id }}" data-bs-slide-to="{{ loop.index0 }}"
+              class="btn btn-sm btn-outline-secondary py-0 px-1 {% if loop.first %}active{% endif %}">{{ loop.index }}</button>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endfor %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// ---- Fuel efficiency chart ----
+const chartData = {{ chart_data | tojson }};
+if (chartData.length >= 2) {
+  const ctx = document.getElementById('fuelChart');
+  if (ctx) {
+    new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: chartData.map(d => d.date),
+        datasets: [{
+          label: '燃費 (km/L)',
+          data: chartData.map(d => d.efficiency),
+          borderColor: '#198754',
+          backgroundColor: 'rgba(25,135,84,0.1)',
+          fill: true,
+          tension: 0.3,
+          pointBackgroundColor: '#198754',
+          pointRadius: 5,
+          pointHoverRadius: 7,
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: ctx => `燃費: ${ctx.parsed.y} km/L`,
+              afterLabel: ctx => {
+                const d = chartData[ctx.dataIndex];
+                return `走行距離: ${d.odometer.toLocaleString()} km`;
+              }
+            }
+          }
+        },
+        scales: {
+          y: {
+            title: { display: true, text: '燃費 (km/L)' },
+            beginAtZero: false,
+          },
+          x: {
+            title: { display: true, text: '給油日' },
+          }
+        }
+      }
+    });
+  }
+}
+
+// ---- Type filter ----
+document.getElementById('typeFilter')?.addEventListener('change', function () {
+  const val = this.value;
+  document.querySelectorAll('.record-row').forEach(row => {
+    row.style.display = (!val || row.dataset.type === val) ? '' : 'none';
+  });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,122 @@
+{% extends 'base.html' %}
+{% block title %}車両一覧 | 自動車整備記録{% endblock %}
+
+{% block content %}
+<div class="row g-3">
+  <div class="col-12 d-flex justify-content-between align-items-center">
+    <h2 class="mb-0"><i class="bi bi-car-front-fill me-2 text-primary"></i>登録車両一覧</h2>
+    <a href="{{ url_for('add_car') }}" class="btn btn-primary">
+      <i class="bi bi-plus-lg me-1"></i>車両を追加
+    </a>
+  </div>
+
+  {% if not cars %}
+  <div class="col-12">
+    <div class="card shadow-sm border-0 text-center py-5">
+      <div class="card-body">
+        <i class="bi bi-car-front display-1 text-muted mb-3"></i>
+        <h4 class="text-muted">車両が登録されていません</h4>
+        <p class="text-muted">「車両を追加」ボタンから最初の車両を登録してください。</p>
+        <a href="{{ url_for('add_car') }}" class="btn btn-primary btn-lg mt-2">
+          <i class="bi bi-plus-lg me-1"></i>車両を追加
+        </a>
+      </div>
+    </div>
+  </div>
+  {% else %}
+  {% for car in cars %}
+  {% set oil_dist = car.get_oil_change_distance() %}
+  {% set last_oil = car.get_last_oil_change() %}
+  {% set max_odo  = car.get_max_odometer() %}
+
+  {# Latest fuel efficiency #}
+  {% set ns = namespace(latest_eff=None) %}
+  {% for r in car.records|reverse %}
+    {% if ns.latest_eff is none and r.fuel_efficiency is not none %}
+      {% set ns.latest_eff = r.fuel_efficiency %}
+    {% endif %}
+  {% endfor %}
+
+  <div class="col-md-6 col-xl-4">
+    <div class="card shadow-sm border-0 h-100 car-card">
+      <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="bi bi-car-front me-2"></i>{{ car.name }}</h5>
+        <span class="badge bg-light text-primary">{{ car.records|length }} 件</span>
+      </div>
+      <div class="card-body">
+        <!-- Stats row -->
+        <div class="row g-2 mb-3">
+          <div class="col-6">
+            <div class="stat-box text-center p-2 rounded bg-light">
+              <div class="stat-label text-muted small">現在の走行距離</div>
+              <div class="stat-value fw-bold text-primary">
+                {% if max_odo %}{{ '{:,}'.format(max_odo) }} km{% else %}<span class="text-muted">—</span>{% endif %}
+              </div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="stat-box text-center p-2 rounded bg-light">
+              <div class="stat-label text-muted small">最新燃費</div>
+              <div class="stat-value fw-bold text-success">
+                {% if ns.latest_eff %}{{ ns.latest_eff }} km/L{% else %}<span class="text-muted">—</span>{% endif %}
+              </div>
+            </div>
+          </div>
+          <div class="col-12">
+            <div class="stat-box p-2 rounded {% if oil_dist and oil_dist > 4000 %}bg-danger text-white{% elif oil_dist and oil_dist > 3000 %}bg-warning{% else %}bg-light{% endif %}">
+              <div class="d-flex justify-content-between align-items-center">
+                <span class="small {% if oil_dist and oil_dist > 4000 %}text-white{% else %}text-muted{% endif %}">
+                  <i class="bi bi-droplet me-1"></i>オイル交換からの距離
+                </span>
+                <span class="fw-bold {% if oil_dist and oil_dist > 4000 %}text-white{% endif %}">
+                  {% if oil_dist is not none %}
+                    {{ '{:,}'.format(oil_dist) }} km
+                    {% if oil_dist > 4000 %}<i class="bi bi-exclamation-triangle-fill ms-1"></i>{% endif %}
+                  {% else %}
+                    <span class="text-muted">記録なし</span>
+                  {% endif %}
+                </span>
+              </div>
+              {% if last_oil %}
+              <div class="small {% if oil_dist and oil_dist > 4000 %}text-white-50{% else %}text-muted{% endif %} mt-1">
+                最終交換: {{ last_oil.date.strftime('%Y/%m/%d') }}
+              </div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+        <!-- Recent records -->
+        {% set recent = car.records|sort(attribute='date', reverse=True)|list %}
+        {% if recent %}
+        <div class="small text-muted mb-1">直近の整備</div>
+        <ul class="list-group list-group-flush">
+          {% for r in recent[:3] %}
+          <li class="list-group-item px-0 py-1 d-flex justify-content-between align-items-center">
+            <span>
+              <span class="badge type-badge-{{ r.type|replace('/', '_')|replace('（', '')|replace('）', '') }} me-1">{{ r.type }}</span>
+              {{ r.date.strftime('%Y/%m/%d') }}
+            </span>
+            {% if r.price %}<span class="text-muted small">¥{{ '{:,}'.format(r.price) }}</span>{% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+      </div>
+      <div class="card-footer bg-transparent border-0 d-flex gap-2">
+        <a href="{{ url_for('car_detail', car_id=car.id) }}" class="btn btn-primary btn-sm flex-grow-1">
+          <i class="bi bi-eye me-1"></i>詳細・記録一覧
+        </a>
+        <a href="{{ url_for('add_record', car_id=car.id) }}" class="btn btn-success btn-sm">
+          <i class="bi bi-plus-lg"></i>
+        </a>
+        <a href="{{ url_for('export_car', car_id=car.id) }}" class="btn btn-outline-secondary btn-sm">
+          <i class="bi bi-file-earmark-excel"></i>
+        </a>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+  {% endif %}
+</div>
+{% endblock %}

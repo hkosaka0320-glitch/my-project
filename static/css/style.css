@@ -1,0 +1,136 @@
+/* =========================================================
+   自動車整備記録 – Custom Styles
+   ========================================================= */
+
+/* ---------- Global ---------- */
+body {
+  background: #f4f6fb;
+  font-family: 'Segoe UI', 'Hiragino Sans', 'Meiryo', sans-serif;
+  font-size: 0.92rem;
+}
+
+/* ---------- Navbar ---------- */
+.navbar-brand {
+  font-size: 1.1rem;
+  letter-spacing: 0.03em;
+}
+
+/* ---------- Cards ---------- */
+.card {
+  border-radius: 0.75rem;
+}
+
+.card-header {
+  border-radius: 0.75rem 0.75rem 0 0 !important;
+  font-size: 0.92rem;
+}
+
+/* ---------- Car cards (index) ---------- */
+.car-card {
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.car-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.12) !important;
+}
+
+.stat-box {
+  transition: background 0.2s;
+}
+
+.stat-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.stat-value {
+  font-size: 1.15rem;
+}
+
+/* ---------- Section titles (add_record) ---------- */
+.section-title {
+  color: #1F5C99;
+  border-left: 4px solid #1F5C99;
+  padding-left: 0.6rem;
+  font-size: 0.92rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* ---------- Maintenance type badges ---------- */
+.badge[class*="type-badge-"] {
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.type-badge-給油             { background-color: #0d6efd; color: #fff; }
+.type-badge-オイル交換        { background-color: #6f4e37; color: #fff; }
+.type-badge-タイヤ交換        { background-color: #495057; color: #fff; }
+.type-badge-車検              { background-color: #dc3545; color: #fff; }
+.type-badge-保険              { background-color: #6f42c1; color: #fff; }
+.type-badge-ワイパー交換      { background-color: #0dcaf0; color: #000; }
+.type-badge-洗車              { background-color: #20c997; color: #fff; }
+.type-badge-その他整備        { background-color: #adb5bd; color: #000; }
+
+/* ---------- Records table ---------- */
+#recordsTable th {
+  font-size: 0.78rem;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+#recordsTable td {
+  vertical-align: middle;
+}
+
+/* ---------- Photo thumbnails ---------- */
+.photo-thumb-container {
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+
+.photo-thumb-container:hover {
+  transform: scale(1.03);
+}
+
+/* ---------- Form tweaks ---------- */
+.form-label {
+  font-size: 0.86rem;
+  margin-bottom: 0.25rem;
+}
+
+.form-control, .form-select {
+  font-size: 0.9rem;
+}
+
+/* ---------- Scrollable table wrapper ---------- */
+.table-responsive {
+  max-height: 65vh;
+  overflow-y: auto;
+}
+
+.table-responsive thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+/* ---------- Alert ---------- */
+.alert {
+  border-radius: 0.6rem;
+  font-size: 0.88rem;
+}
+
+/* ---------- Summary display-6 ---------- */
+@media (max-width: 576px) {
+  .display-6 {
+    font-size: 1.4rem;
+  }
+}
+
+/* ---------- Oil warning colours ---------- */
+.oil-warn-ok   { color: #198754; }
+.oil-warn-mid  { color: #ffc107; }
+.oil-warn-high { color: #dc3545; }
