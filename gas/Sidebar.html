@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>自動車整備記録</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+<style>
+  body          { font-size:.84rem; background:#f0f4f8; padding:0; margin:0; }
+  /* ── ヘッダー ── */
+  .app-hdr      { background:#1F5C99; color:#fff; padding:9px 12px;
+                  display:flex; justify-content:space-between; align-items:center;
+                  position:sticky; top:0; z-index:200; }
+  .app-hdr h6   { margin:0; font-size:.92rem; }
+  /* ── ビュー切替 ── */
+  .view         { display:none; }
+  .view.active  { display:block; }
+  /* ── 車両カード ── */
+  .car-item          { background:#fff; border-radius:8px; padding:10px 12px;
+                        margin-bottom:8px; box-shadow:0 1px 4px rgba(0,0,0,.08);
+                        transition:box-shadow .15s; }
+  .car-item:hover    { box-shadow:0 3px 12px rgba(0,0,0,.13); }
+  .car-name          { font-weight:600; color:#1F5C99; cursor:pointer; }
+  .stat-row          { display:flex; gap:10px; flex-wrap:wrap; margin-top:5px; font-size:.75rem; color:#555; }
+  .oil-warn-hi  { color:#dc3545!important; font-weight:bold; }
+  .oil-warn-md  { color:#e6a800!important; }
+  /* ── 記録アイテム ── */
+  .rec-item          { background:#fff; border-radius:6px; padding:8px 10px;
+                        margin-bottom:6px; box-shadow:0 1px 3px rgba(0,0,0,.07); }
+  /* ── 種別バッジ ── */
+  .tb               { display:inline-block; padding:1px 8px; border-radius:10px;
+                      font-size:.71rem; font-weight:600; white-space:nowrap; }
+  .tb-給油           { background:#0d6efd; color:#fff; }
+  .tb-オイル交換     { background:#6f4e37; color:#fff; }
+  .tb-タイヤ交換     { background:#495057; color:#fff; }
+  .tb-車検           { background:#dc3545; color:#fff; }
+  .tb-保険           { background:#6f42c1; color:#fff; }
+  .tb-ワイパー交換   { background:#0dcaf0; color:#000; }
+  .tb-洗車           { background:#20c997; color:#fff; }
+  .tb-その他整備     { background:#adb5bd; color:#000; }
+  /* ── フォーム ── */
+  .form-label   { font-size:.78rem; font-weight:600; margin-bottom:2px; }
+  .form-control,.form-select { font-size:.82rem; padding:4px 8px; }
+  .sec-title    { font-size:.78rem; font-weight:700; color:#1F5C99;
+                  border-left:3px solid #1F5C99; padding-left:7px;
+                  margin:12px 0 8px; text-transform:uppercase; letter-spacing:.05em; }
+  /* ── 統計バー ── */
+  .stats-bar    { background:#EAF2FF; border-radius:6px; padding:7px 10px;
+                  margin:6px 0; font-size:.77rem; line-height:1.6; }
+  /* ── ローディング ── */
+  #loadingOverlay { position:fixed; inset:0; background:rgba(255,255,255,.8);
+                    display:flex; align-items:center; justify-content:center; z-index:9999; }
+  /* ── 写真サムネイル ── */
+  .ph-thumb     { width:56px; height:56px; object-fit:cover; border-radius:4px;
+                  border:1px solid #ccc; cursor:pointer; }
+  /* ── インラインアラート ── */
+  .f-alert      { border-radius:6px; padding:5px 10px; font-size:.8rem; margin:4px 0; }
+  #recordList   { max-height:calc(100vh - 210px); overflow-y:auto; }
+</style>
+</head>
+<body>
+
+<!-- ローディング -->
+<div id="loadingOverlay">
+  <div class="text-center">
+    <div class="spinner-border text-primary"></div>
+    <div class="mt-2 text-muted small">読み込み中...</div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     VIEW: 車両一覧
+══════════════════════════════════════════ -->
+<div id="view-cars" class="view">
+  <div class="app-hdr">
+    <h6><i class="bi bi-car-front-fill me-1"></i>自動車整備記録</h6>
+    <button class="btn btn-sm btn-outline-light" onclick="showAddCarBox()">
+      <i class="bi bi-plus-lg"></i> 車両追加
+    </button>
+  </div>
+  <div class="p-2">
+    <!-- 車両追加フォーム（非表示） -->
+    <div id="addCarBox" class="card mb-2" style="display:none;">
+      <div class="card-body p-2">
+        <div class="fw-bold small mb-2">新しい車両を追加</div>
+        <div class="input-group input-group-sm">
+          <input id="newCarName" type="text" class="form-control" placeholder="車両名（例: プリウス）"
+                 maxlength="50" onkeydown="if(event.key==='Enter') doAddCar()">
+          <button class="btn btn-primary" onclick="doAddCar()">追加</button>
+          <button class="btn btn-secondary" onclick="hideAddCarBox()">×</button>
+        </div>
+        <div id="addCarErr" class="text-danger small mt-1" style="display:none;"></div>
+      </div>
+    </div>
+    <!-- 車両リスト -->
+    <div id="carList"></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     VIEW: 記録一覧
+══════════════════════════════════════════ -->
+<div id="view-records" class="view">
+  <div class="app-hdr">
+    <div class="d-flex align-items-center gap-2">
+      <button class="btn btn-sm btn-outline-light" onclick="goHome()"><i class="bi bi-arrow-left"></i></button>
+      <span id="recCarLabel" class="fw-bold"></span>
+    </div>
+    <button class="btn btn-sm btn-success" onclick="openForm(null)">
+      <i class="bi bi-plus-lg"></i> 追加
+    </button>
+  </div>
+  <div class="p-2">
+    <div id="recStats" class="stats-bar"></div>
+    <div class="d-flex gap-2 align-items-center mb-2">
+      <label class="text-muted mb-0" style="font-size:.74rem;white-space:nowrap;">種別:</label>
+      <select id="typeFilter" class="form-select form-select-sm" onchange="filterRecords()">
+        <option value="">すべて</option>
+        <option>給油</option><option>オイル交換</option><option>タイヤ交換</option>
+        <option>車検</option><option>保険</option><option>ワイパー交換</option>
+        <option>洗車</option><option>その他整備</option>
+      </select>
+      <span id="recCount" class="text-muted small" style="white-space:nowrap;"></span>
+    </div>
+    <div id="recordList"></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     VIEW: 記録フォーム
+══════════════════════════════════════════ -->
+<div id="view-form" class="view">
+  <div class="app-hdr">
+    <div class="d-flex align-items-center gap-2">
+      <button class="btn btn-sm btn-outline-light" onclick="goBackFromForm()"><i class="bi bi-arrow-left"></i></button>
+      <span id="formTitle" class="fw-bold"></span>
+    </div>
+  </div>
+  <div class="p-2 pb-5">
+    <div id="formAlert" style="display:none;"></div>
+    <form id="recordForm" onsubmit="submitForm(event)" novalidate>
+      <input type="hidden" id="fCarName">
+      <input type="hidden" id="fRowIndex">
+      <input type="hidden" id="fPhotosVal">
+
+      <!-- 基本情報 -->
+      <div class="sec-title"><i class="bi bi-info-circle me-1"></i>基本情報</div>
+      <div class="row g-2">
+        <div class="col-6">
+          <label class="form-label">整備年月日 <span class="text-danger">*</span></label>
+          <input type="date" id="fDate" class="form-control form-control-sm" required>
+        </div>
+        <div class="col-6">
+          <label class="form-label">整備種別 <span class="text-danger">*</span></label>
+          <select id="fType" class="form-select form-select-sm" required onchange="onTypeChange()">
+            <option value="">-- 選択 --</option>
+            <option>給油</option><option>オイル交換</option><option>タイヤ交換</option>
+            <option>車検</option><option>保険</option><option>ワイパー交換</option>
+            <option>洗車</option><option>その他整備</option>
+          </select>
+        </div>
+        <div class="col-6">
+          <label class="form-label">メーター距離 (km)</label>
+          <div class="input-group input-group-sm">
+            <input type="number" id="fOdo" class="form-control" min="0" placeholder="例: 35000">
+            <span class="input-group-text">km</span>
+          </div>
+        </div>
+        <div class="col-6">
+          <label class="form-label">料金 (円)</label>
+          <div class="input-group input-group-sm">
+            <span class="input-group-text">¥</span>
+            <input type="number" id="fPrice" class="form-control" min="0" placeholder="例: 5000">
+          </div>
+        </div>
+      </div>
+
+      <!-- 給油情報 -->
+      <div id="fuelSec" style="display:none;">
+        <div class="sec-title"><i class="bi bi-fuel-pump me-1"></i>給油情報</div>
+        <div class="row g-2">
+          <div class="col-6">
+            <label class="form-label">給油量 (L)</label>
+            <div class="input-group input-group-sm">
+              <input type="number" id="fFuelAmt" class="form-control" min="0" step="0.01" placeholder="30.5">
+              <span class="input-group-text">L</span>
+            </div>
+          </div>
+          <div class="col-6">
+            <label class="form-label">給油状態</label>
+            <select id="fFuelSts" class="form-select form-select-sm">
+              <option value="">-- 選択 --</option>
+              <option value="満タン">満タン</option>
+              <option value="非満タン">非満タン</option>
+            </select>
+          </div>
+          <div class="col-12">
+            <label class="form-label text-muted">燃費 (km/L)</label>
+            <div id="fEffDisp" class="form-control form-control-sm bg-light text-muted">
+              保存後に自動計算されます（満タン法）
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- オイル交換情報 -->
+      <div id="oilSec" style="display:none;">
+        <div class="sec-title"><i class="bi bi-droplet-half me-1"></i>オイル交換情報</div>
+        <div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" id="fOilElm">
+          <label class="form-check-label small" for="fOilElm">
+            オイルエレメント（フィルター）も同時交換
+          </label>
+        </div>
+      </div>
+
+      <!-- 摘要・メモ -->
+      <div class="sec-title"><i class="bi bi-chat-left-text me-1"></i>摘要・メモ</div>
+      <div class="row g-2">
+        <div class="col-12">
+          <label class="form-label">摘要</label>
+          <textarea id="fSummary" class="form-control form-control-sm" rows="2" placeholder="整備の概要"></textarea>
+        </div>
+        <div class="col-12">
+          <label class="form-label">メモ</label>
+          <textarea id="fMemo" class="form-control form-control-sm" rows="2" placeholder="自由にメモ"></textarea>
+        </div>
+        <div class="col-12">
+          <label class="form-label">データ保存先</label>
+          <input type="text" id="fSavePath" class="form-control form-control-sm"
+                 placeholder="例: C:\Documents\整備記録\2024">
+        </div>
+      </div>
+
+      <!-- 写真 -->
+      <div class="sec-title"><i class="bi bi-camera me-1"></i>写真</div>
+      <div id="existingPhotoArea" style="display:none;" class="mb-2">
+        <div class="small text-muted mb-1">登録済み写真:</div>
+        <div id="existingPhotoLinks"></div>
+      </div>
+      <input type="file" id="fPhotos" class="form-control form-control-sm mb-1"
+             multiple accept="image/*" onchange="previewPhotos(this)">
+      <div class="form-text mb-1" style="font-size:.72rem;">
+        複数枚可。Google Drive「自動車整備記録_写真」フォルダに保存されます。
+      </div>
+      <div id="photoPreviews" class="d-flex flex-wrap gap-1 mb-2"></div>
+
+      <!-- ボタン -->
+      <div class="d-grid gap-2 mt-3">
+        <button type="submit" id="submitBtn" class="btn btn-primary btn-sm">
+          <i class="bi bi-check-lg me-1"></i><span id="submitTxt">保存</span>
+        </button>
+        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="goBackFromForm()">
+          キャンセル
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+'use strict';
+
+// ───────────────── 状態 ─────────────────
+const ST = {
+  cars:        [],
+  currentCar:  null,
+  records:     [],
+  recordMap:   {},       // rowIndex → record
+  editing:     null,     // 編集中 record
+  newPhotos:   [],       // { data, name, mime }
+  uploadedURLs:[]        // アップロード済み URL
+};
+
+// ───────────────── 初期化 ─────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  setTodayOnForm();
+  loadCars();
+});
+
+function setTodayOnForm() {
+  const d  = new Date();
+  const yy = d.getFullYear();
+  const mm = String(d.getMonth()+1).padStart(2,'0');
+  const dd = String(d.getDate()).padStart(2,'0');
+  document.getElementById('fDate').value = `${yy}-${mm}-${dd}`;
+}
+
+// ───────────────── ビュー制御 ─────────────────
+function showView(id) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('view-'+id).classList.add('active');
+}
+function showLoading()  { document.getElementById('loadingOverlay').style.display='flex'; }
+function hideLoading()  { document.getElementById('loadingOverlay').style.display='none'; }
+
+// ───────────────── 車両一覧 ─────────────────
+function goHome() {
+  showView('cars');
+  loadCars();
+}
+
+function loadCars() {
+  showView('cars');
+  const list = document.getElementById('carList');
+  list.innerHTML = spinner();
+  run('getCars').then(cars => {
+    ST.cars = cars;
+    renderCarList(cars);
+    hideLoading();
+  }).catch(e => { list.innerHTML = errHtml(e); hideLoading(); });
+}
+
+function renderCarList(cars) {
+  const list = document.getElementById('carList');
+  if (!cars || cars.length === 0) {
+    list.innerHTML = `<div class="text-center text-muted py-5">
+      <i class="bi bi-car-front display-5"></i>
+      <div class="mt-2">車両が登録されていません</div>
+      <div class="small mt-1">「車両追加」から登録してください</div></div>`;
+    return;
+  }
+  list.innerHTML = '';
+  cars.forEach(car => {
+    const s   = car.stats || {};
+    const oc  = !s.oilDist ? '' : s.oilDist > 4000 ? 'oil-warn-hi' : s.oilDist > 3000 ? 'oil-warn-md' : '';
+    const ow  = s.oilDist > 4000 ? ' ⚠️' : '';
+    const el  = document.createElement('div');
+    el.className = 'car-item';
+    el.innerHTML = `
+      <div class="d-flex justify-content-between align-items-start">
+        <div class="car-name" onclick="loadRecords('${xe(car.name)}')">
+          <i class="bi bi-car-front me-1"></i>${xe(car.name)}
+          <span class="badge bg-secondary ms-1" style="font-size:.67rem;">${car.recordCount}件</span>
+        </div>
+        <div class="d-flex gap-1">
+          <button class="btn btn-outline-success btn-sm py-0 px-1"
+                  onclick="openFormForCar('${xe(car.name)}')" title="整備記録追加">
+            <i class="bi bi-plus-lg"></i>
+          </button>
+          <div class="dropdown">
+            <button class="btn btn-outline-secondary btn-sm py-0 px-1" data-bs-toggle="dropdown">
+              <i class="bi bi-three-dots-vertical"></i>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end" style="font-size:.8rem;min-width:130px;">
+              <li><a class="dropdown-item" href="#"
+                     onclick="loadRecords('${xe(car.name)}');return false;">
+                <i class="bi bi-list-ul me-1"></i>記録一覧</a></li>
+              <li><a class="dropdown-item" href="#"
+                     onclick="doRenameCar('${xe(car.name)}');return false;">
+                <i class="bi bi-pencil me-1"></i>名前変更</a></li>
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item text-danger" href="#"
+                     onclick="doDeleteCar('${xe(car.name)}');return false;">
+                <i class="bi bi-trash me-1"></i>削除</a></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="stat-row">
+        <span><i class="bi bi-speedometer2 me-1"></i>${s.maxOdo ? fmt(s.maxOdo)+' km' : '—'}</span>
+        <span><i class="bi bi-fuel-pump me-1"></i>${s.lastEff ? s.lastEff+' km/L' : '—'}</span>
+        <span class="${oc}"><i class="bi bi-droplet-half me-1"></i>${s.oilDist !== null && s.oilDist !== undefined ? fmt(s.oilDist)+' km'+ow : '—'}</span>
+      </div>
+      ${s.lastOilDate ? `<div style="font-size:.72rem;color:#888;margin-top:3px;">最終オイル交換: ${s.lastOilDate}</div>` : ''}`;
+    document.getElementById('carList').appendChild(el);
+  });
+}
+
+// ── 車両追加フォーム ──
+function showAddCarBox() {
+  document.getElementById('addCarBox').style.display = 'block';
+  document.getElementById('newCarName').focus();
+}
+function hideAddCarBox() {
+  document.getElementById('addCarBox').style.display = 'none';
+  document.getElementById('newCarName').value = '';
+  document.getElementById('addCarErr').style.display = 'none';
+}
+function doAddCar() {
+  const name = document.getElementById('newCarName').value.trim();
+  if (!name) return;
+  showLoading();
+  run('addCar', name).then(r => {
+    hideLoading();
+    if (r.ok) { hideAddCarBox(); loadCars(); }
+    else { showErr('addCarErr', r.msg); }
+  }).catch(e => { hideLoading(); showErr('addCarErr', e.message); });
+}
+function doRenameCar(name) {
+  const n = prompt(`「${name}」の新しい名前:`, name);
+  if (!n || n.trim() === name) return;
+  showLoading();
+  run('renameCar', name, n.trim()).then(r => {
+    hideLoading();
+    if (r.ok) loadCars(); else alert('エラー: '+r.msg);
+  }).catch(e => { hideLoading(); alert(e.message); });
+}
+function doDeleteCar(name) {
+  if (!confirm(`「${name}」とすべての整備記録を削除しますか？`)) return;
+  showLoading();
+  run('deleteCar', name).then(r => {
+    hideLoading();
+    if (r.ok) loadCars(); else alert('エラー: '+r.msg);
+  }).catch(e => { hideLoading(); alert(e.message); });
+}
+
+// ───────────────── 記録一覧 ─────────────────
+function loadRecords(carName) {
+  ST.currentCar = carName;
+  document.getElementById('recCarLabel').textContent = carName;
+  document.getElementById('typeFilter').value = '';
+  showView('records');
+  document.getElementById('recordList').innerHTML = spinner();
+  document.getElementById('recStats').innerHTML = '';
+  run('getRecords', carName).then(recs => {
+    ST.records   = recs;
+    ST.recordMap = {};
+    recs.forEach(r => { ST.recordMap[r.rowIndex] = r; });
+    renderStats(recs);
+    renderRecords(recs);
+  }).catch(e => {
+    document.getElementById('recordList').innerHTML = errHtml(e);
+  });
+}
+
+function renderStats(recs) {
+  const el = document.getElementById('recStats');
+  if (!recs || recs.length === 0) { el.innerHTML=''; return; }
+  let maxOdo=0, lastEff=null, lastOilOdo=0, lastOilDate=null;
+  recs.forEach(r => {
+    const odo = Number(r.odometer)||0;
+    if (odo > maxOdo) maxOdo = odo;
+    if (lastEff === null && Number(r.fuelEfficiency) > 0) lastEff = r.fuelEfficiency;
+    if (r.type === 'オイル交換' && odo > lastOilOdo) { lastOilOdo=odo; lastOilDate=r.date; }
+  });
+  const oilDist = (lastOilOdo > 0 && maxOdo > 0) ? maxOdo - lastOilOdo : null;
+  const oc = !oilDist ? '' : oilDist > 4000 ? 'oil-warn-hi' : oilDist > 3000 ? 'oil-warn-md' : 'text-success';
+  el.innerHTML = `
+    <div class="d-flex gap-3 flex-wrap">
+      <span><i class="bi bi-speedometer2 me-1"></i>${maxOdo ? fmt(maxOdo)+' km' : '—'}</span>
+      <span><i class="bi bi-fuel-pump me-1"></i>${lastEff ? lastEff+' km/L' : '—'}</span>
+      <span class="${oc}"><i class="bi bi-droplet-half me-1"></i>${oilDist !== null ? fmt(oilDist)+' km'+(oilDist>4000?' ⚠️':'') : '—'}</span>
+    </div>
+    ${lastOilDate ? `<div style="font-size:.72rem;color:#666;margin-top:2px;">最終オイル交換: ${lastOilDate}</div>` : ''}`;
+}
+
+function renderRecords(recs) {
+  const fv  = document.getElementById('typeFilter').value;
+  const arr = fv ? recs.filter(r => r.type === fv) : recs;
+  document.getElementById('recCount').textContent = arr.length + '件';
+  const list = document.getElementById('recordList');
+  if (!arr.length) { list.innerHTML='<div class="text-center text-muted py-3">記録がありません</div>'; return; }
+  list.innerHTML = '';
+  arr.forEach(r => {
+    const oc   = Number(r.oilDistance) > 4000 ? 'oil-warn-hi' : Number(r.oilDistance) > 3000 ? 'oil-warn-md' : '';
+    const dtls = [];
+    if (r.odometer)       dtls.push(`<i class="bi bi-speedometer2"></i> ${fmt(r.odometer)} km`);
+    if (r.price)          dtls.push(`¥${fmt(r.price)}`);
+    if (r.fuelAmount)     dtls.push(`${r.fuelAmount} L`);
+    if (r.fuelEfficiency) dtls.push(`<span class="text-success fw-bold">${r.fuelEfficiency} km/L</span>`);
+    if (r.oilDistance)    dtls.push(`<span class="${oc}">ｵｲﾙ後 ${fmt(r.oilDistance)} km</span>`);
+    const el = document.createElement('div');
+    el.className = 'rec-item';
+    el.innerHTML = `
+      <div class="d-flex justify-content-between align-items-start">
+        <div>
+          <span class="tb tb-${xe(r.type)}">${xe(r.type)}</span>
+          <span class="text-muted ms-1">${r.date}</span>
+          ${r.type==='オイル交換' && r.oilElement==='あり'
+            ? '<span class="ms-1 badge bg-info text-dark" style="font-size:.66rem;">ｴﾚﾒﾝﾄ</span>' : ''}
+          ${r.fuelStatus ? `<span class="ms-1 badge ${r.fuelStatus==='満タン'?'bg-primary':'bg-secondary'}" style="font-size:.66rem;">${r.fuelStatus}</span>` : ''}
+        </div>
+        <div class="d-flex gap-1">
+          <button class="btn btn-outline-primary py-0 px-1" style="font-size:.71rem;"
+                  onclick="openForm(${r.rowIndex})"><i class="bi bi-pencil"></i></button>
+          <button class="btn btn-outline-danger py-0 px-1" style="font-size:.71rem;"
+                  onclick="doDeleteRecord(${r.rowIndex})"><i class="bi bi-trash"></i></button>
+        </div>
+      </div>
+      ${dtls.length ? `<div class="d-flex flex-wrap gap-2 mt-1" style="font-size:.74rem;">${dtls.join(' · ')}</div>` : ''}
+      ${r.summary ? `<div class="text-muted mt-1" style="font-size:.74rem;">${xe(r.summary)}</div>` : ''}
+      ${r.photos ? `<div class="mt-1"><a href="${r.photos.split('\n')[0]}" target="_blank" class="small text-primary"><i class="bi bi-images me-1"></i>写真あり</a></div>` : ''}`;
+    list.appendChild(el);
+  });
+}
+
+function filterRecords() { renderRecords(ST.records); }
+
+function doDeleteRecord(rowIndex) {
+  if (!confirm('この整備記録を削除しますか？')) return;
+  showLoading();
+  run('deleteRecord', ST.currentCar, rowIndex).then(r => {
+    hideLoading();
+    if (r.ok) loadRecords(ST.currentCar); else alert('エラー: '+r.msg);
+  }).catch(e => { hideLoading(); alert(e.message); });
+}
+
+// ───────────────── フォーム ─────────────────
+function openFormForCar(carName) {
+  ST.currentCar = carName;
+  openForm(null);
+}
+
+function openForm(rowIndex) {
+  const rec    = rowIndex !== null ? ST.recordMap[rowIndex] : null;
+  ST.editing       = rec;
+  ST.newPhotos     = [];
+  ST.uploadedURLs  = [];
+
+  document.getElementById('fCarName').value  = ST.currentCar;
+  document.getElementById('fRowIndex').value = rec ? rec.rowIndex : '';
+  document.getElementById('fPhotosVal').value = '';
+  document.getElementById('photoPreviews').innerHTML = '';
+  document.getElementById('formAlert').style.display = 'none';
+  document.getElementById('existingPhotoArea').style.display = 'none';
+  document.getElementById('existingPhotoLinks').innerHTML = '';
+
+  if (rec) {
+    document.getElementById('formTitle').textContent = '記録を編集';
+    document.getElementById('submitTxt').textContent  = '更新';
+    document.getElementById('fDate').value     = rec.date ? rec.date.replace(/\//g,'-') : '';
+    document.getElementById('fType').value     = rec.type || '';
+    document.getElementById('fOdo').value      = rec.odometer || '';
+    document.getElementById('fPrice').value    = rec.price || '';
+    document.getElementById('fFuelAmt').value  = rec.fuelAmount || '';
+    document.getElementById('fFuelSts').value  = rec.fuelStatus || '';
+    document.getElementById('fOilElm').checked = rec.oilElement === 'あり';
+    document.getElementById('fSummary').value  = rec.summary || '';
+    document.getElementById('fMemo').value     = rec.memo || '';
+    document.getElementById('fSavePath').value = rec.savePath || '';
+    document.getElementById('fEffDisp').textContent =
+      rec.fuelEfficiency ? rec.fuelEfficiency + ' km/L' : '保存後に自動計算されます（満タン法）';
+    if (rec.photos) {
+      const urls = rec.photos.split('\n').filter(u => u.trim());
+      ST.uploadedURLs = urls;
+      const area = document.getElementById('existingPhotoArea');
+      area.style.display = 'block';
+      urls.forEach((url, i) => {
+        const a = document.createElement('a');
+        a.href = url; a.target = '_blank';
+        a.className = 'small text-primary me-2';
+        a.innerHTML = `<i class="bi bi-image me-1"></i>写真 ${i+1}`;
+        document.getElementById('existingPhotoLinks').appendChild(a);
+      });
+    }
+  } else {
+    document.getElementById('formTitle').textContent = `記録追加 (${ST.currentCar})`;
+    document.getElementById('submitTxt').textContent  = '保存';
+    document.getElementById('recordForm').reset();
+    document.getElementById('fPhotos').value = '';
+    setTodayOnForm();
+    document.getElementById('fEffDisp').textContent = '保存後に自動計算されます（満タン法）';
+  }
+  onTypeChange();
+  showView('form');
+}
+
+function goBackFromForm() {
+  if (ST.currentCar) loadRecords(ST.currentCar); else goHome();
+}
+
+function onTypeChange() {
+  const t = document.getElementById('fType').value;
+  document.getElementById('fuelSec').style.display = t === '給油'      ? 'block' : 'none';
+  document.getElementById('oilSec').style.display  = t === 'オイル交換' ? 'block' : 'none';
+}
+
+// ── 写真プレビュー ──
+function previewPhotos(input) {
+  ST.newPhotos = [];
+  document.getElementById('photoPreviews').innerHTML = '';
+  Array.from(input.files).forEach(file => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      ST.newPhotos.push({ data: e.target.result.split(',')[1], name: file.name, mime: file.type });
+      const img = document.createElement('img');
+      img.src = e.target.result;
+      img.className = 'ph-thumb';
+      img.title = file.name;
+      document.getElementById('photoPreviews').appendChild(img);
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+// ── フォーム送信 ──
+async function submitForm(e) {
+  e.preventDefault();
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>保存中...';
+  document.getElementById('formAlert').style.display = 'none';
+
+  const carName  = document.getElementById('fCarName').value;
+  const rowIndex = document.getElementById('fRowIndex').value;
+
+  // 写真アップロード
+  for (const ph of ST.newPhotos) {
+    try {
+      const r = await run('uploadPhoto', ph.data, ph.name, ph.mime, carName);
+      if (r.ok) ST.uploadedURLs.push(r.url);
+    } catch(_) {}
+  }
+
+  const payload = {
+    carName:    carName,
+    rowIndex:   rowIndex || null,
+    date:       document.getElementById('fDate').value,
+    type:       document.getElementById('fType').value,
+    odometer:   document.getElementById('fOdo').value,
+    price:      document.getElementById('fPrice').value,
+    fuelAmount: document.getElementById('fFuelAmt').value,
+    fuelStatus: document.getElementById('fFuelSts').value,
+    oilElement: document.getElementById('fOilElm').checked,
+    summary:    document.getElementById('fSummary').value,
+    memo:       document.getElementById('fMemo').value,
+    savePath:   document.getElementById('fSavePath').value,
+    photos:     ST.uploadedURLs.join('\n')
+  };
+
+  try {
+    const r = await run(rowIndex ? 'updateRecord' : 'addRecord', payload);
+    btn.disabled = false;
+    btn.innerHTML = `<i class="bi bi-check-lg me-1"></i>${rowIndex ? '更新' : '保存'}`;
+    if (r.ok) {
+      goBackFromForm();
+    } else {
+      showAlertInForm('danger', 'エラー: ' + r.msg);
+    }
+  } catch(err) {
+    btn.disabled = false;
+    btn.innerHTML = `<i class="bi bi-check-lg me-1"></i>${rowIndex ? '更新' : '保存'}`;
+    showAlertInForm('danger', 'エラー: ' + err.message);
+  }
+}
+
+function showAlertInForm(type, msg) {
+  const el = document.getElementById('formAlert');
+  el.className = `f-alert alert-${type} alert`;
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+// ───────────────── ユーティリティ ─────────────────
+function fmt(n) { return Number(n).toLocaleString('ja-JP'); }
+
+function xe(s) { // HTML エスケープ
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function spinner() {
+  return '<div class="text-center text-muted py-3"><div class="spinner-border spinner-border-sm"></div></div>';
+}
+function errHtml(e) {
+  return `<div class="text-danger small p-2">エラー: ${e.message || e}</div>`;
+}
+function showErr(elId, msg) {
+  const el = document.getElementById(elId);
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+/** google.script.run の Promise ラッパー */
+function run(fnName, ...args) {
+  return new Promise((resolve, reject) => {
+    google.script.run
+      .withSuccessHandler(resolve)
+      .withFailureHandler(reject)
+      [fnName](...args);
+  });
+}
+</script>
+</body>
+</html>
