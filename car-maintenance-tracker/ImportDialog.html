@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <base target="_top">
+  <title>データインポート</title>
+  <?!= include('Stylesheet') ?>
+  <style>
+    body { padding: 0; }
+    .wrap { padding: 16px; }
+    .form-group { margin-bottom: 14px; }
+    .btn-footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+    .result-box { background: #E8F5E9; border: 1px solid #A5D6A7; border-radius: 8px; padding: 12px 14px; margin-top: 12px; }
+    .result-errors { background: #FFF8E1; border: 1px solid #FFE082; border-radius: 6px; padding: 8px 12px; margin-top: 8px; font-size: 11px; }
+    .help-text { font-size: 11px; color: #777; margin-top: 3px; }
+    .overwrite-row { display: flex; align-items: center; gap: 6px; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <h5 style="font-weight:bold;margin-bottom:14px;color:#2E7D32">データ CSVインポート</h5>
+
+  <div id="alertBox" style="display:none" class="alert alert-danger"></div>
+  <div id="resultArea" style="display:none"></div>
+
+  <div class="form-group">
+    <label class="form-label required-mark">インポート先の自動車</label>
+    <select id="carSelect" class="form-select">
+      <option value="">--- 選択 ---</option>
+    </select>
+    <div class="help-text">存在しない自動車名を指定すると新規に作成されます。</div>
+  </div>
+
+  <div class="form-group">
+    <label class="form-label">新しい自動車名（直接入力）</label>
+    <input type="text" id="newCarInput" class="form-control" placeholder="新しい自動車名を入力（省略可）"
+           oninput="document.getElementById('carSelect').value = ''">
+    <div class="help-text">上のセレクトとどちらか一方を使用してください。</div>
+  </div>
+
+  <div class="form-group">
+    <label class="form-label required-mark">CSVデータ</label>
+    <textarea id="csvInput" class="form-control" rows="8"
+      placeholder="CSVデータを貼り付けてください&#10;（1行目はヘッダー行として扱われます）"></textarea>
+  </div>
+
+  <div class="form-group">
+    <div class="overwrite-row">
+      <input type="checkbox" id="overwrite" style="width:16px;height:16px">
+      <label for="overwrite" style="cursor:pointer;font-weight:600">既存データを上書きする</label>
+    </div>
+    <div class="help-text" style="margin-left:22px">チェックすると既存の整備記録を全て削除してからインポートします。</div>
+  </div>
+
+  <div class="help-text" style="padding:8px;background:#f5f5f5;border-radius:6px;font-size:12px">
+    <strong>CSV形式：</strong>エクスポートしたファイルと同じ列順<br>
+    <strong>日付形式：</strong>yyyy/MM/dd または yyyy-MM-dd<br>
+    <strong>文字コード：</strong>UTF-8（BOM付き・なし両対応）
+  </div>
+
+  <div class="btn-footer">
+    <button class="btn btn-secondary" onclick="google.script.host.close()">閉じる</button>
+    <button class="btn btn-primary" id="btnImport" onclick="doImport()">
+      <span id="btnText">インポート</span>
+    </button>
+  </div>
+</div>
+
+<script>
+const carList = <?!= carList ?>;
+
+window.onload = function() {
+  const sel = document.getElementById('carSelect');
+  carList.forEach(name => {
+    const opt = document.createElement('option');
+    opt.value = name; opt.textContent = name;
+    sel.appendChild(opt);
+  });
+};
+
+function doImport() {
+  const csvContent = document.getElementById('csvInput').value.trim();
+  if (!csvContent) { showAlert('CSVデータを入力してください。'); return; }
+
+  // 自動車名の決定（直接入力 優先）
+  const newCarInput = document.getElementById('newCarInput').value.trim();
+  const carName     = newCarInput || document.getElementById('carSelect').value;
+  if (!carName) { showAlert('インポート先の自動車を選択または入力してください。'); return; }
+
+  const overwrite = document.getElementById('overwrite').checked;
+
+  if (overwrite && !confirm(`「${carName}」の既存データを全て削除してインポートしますか？\nこの操作は元に戻せません。`)) return;
+
+  setLoading(true);
+  document.getElementById('alertBox').style.display   = 'none';
+  document.getElementById('resultArea').style.display = 'none';
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      setLoading(false);
+      if (res.success) {
+        let html = `<div class="result-box"><strong>インポート完了！</strong><br>件数: ${res.count} 件</div>`;
+        if (res.errors && res.errors.length > 0) {
+          html += `<div class="result-errors"><strong>スキップされた行:</strong><br>${res.errors.map(escHtml).join('<br>')}</div>`;
+        }
+        document.getElementById('resultArea').innerHTML = html;
+        document.getElementById('resultArea').style.display = '';
+        document.getElementById('csvInput').value = '';
+      } else {
+        showAlert('インポートエラー: ' + res.error);
+      }
+    })
+    .withFailureHandler(function(err) {
+      setLoading(false);
+      showAlert('エラー: ' + (err.message || err));
+    })
+    .importFromCsv(csvContent, carName, overwrite);
+}
+
+function setLoading(loading) {
+  document.getElementById('btnText').textContent  = loading ? 'インポート中...' : 'インポート';
+  document.getElementById('btnImport').disabled   = loading;
+}
+
+function showAlert(msg) {
+  const el = document.getElementById('alertBox');
+  el.textContent = msg; el.style.display = 'block';
+}
+
+function escHtml(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>

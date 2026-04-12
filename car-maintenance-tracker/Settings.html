@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <base target="_top">
+  <title>設定</title>
+  <?!= include('Stylesheet') ?>
+  <style>
+    body { padding: 0; }
+    .wrap { padding: 16px; }
+    .form-group { margin-bottom: 14px; }
+    .help-text { font-size: 11px; color: #777; margin-top: 3px; }
+    .car-list-item { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border: 1px solid #ddd; border-radius: 6px; margin-bottom: 6px; background: #fafafa; }
+    .car-list-item span { flex: 1; font-weight: 600; }
+    .section-title { font-size: 13px; font-weight: bold; color: #2E7D32; padding-left: 8px; border-left: 3px solid #2E7D32; margin: 14px 0 10px; }
+    .add-car-row { display: flex; gap: 6px; }
+    .add-car-row input { flex: 1; }
+    .btn-footer { display: flex; justify-content: flex-end; gap: 8px; padding-top: 12px; border-top: 1px solid #e0e0e0; margin-top: 8px; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div id="alertBox" style="display:none" class="alert alert-danger"></div>
+  <div id="successBox" style="display:none" class="alert alert-success"></div>
+
+  <!-- ===== データ保存先 ===== -->
+  <div class="section-title">データ保存先（エクスポート）</div>
+  <div class="form-group">
+    <label class="form-label">Google Drive フォルダ ID</label>
+    <input type="text" id="exportFolderId" class="form-control" placeholder="フォルダIDを貼り付け">
+    <div class="help-text">
+      エクスポート先フォルダのIDを指定します。<br>
+      Google Drive のフォルダ URL 末尾の文字列がフォルダIDです。<br>
+      例: <code>https://drive.google.com/drive/folders/<strong>1abc...xyz</strong></code><br>
+      空白の場合はマイドライブのルートに保存されます。
+    </div>
+  </div>
+
+  <!-- ===== デフォルト自動車 ===== -->
+  <div class="section-title">既定の自動車</div>
+  <div class="form-group">
+    <label class="form-label">デフォルト自動車</label>
+    <select id="defaultCar" class="form-select">
+      <option value="">（なし）</option>
+    </select>
+    <div class="help-text">入力フォームを開いた際にデフォルトで選択される自動車です。</div>
+  </div>
+
+  <!-- ===== 自動車管理 ===== -->
+  <div class="section-title">自動車の管理</div>
+
+  <div id="carListArea"></div>
+
+  <div class="add-car-row" style="margin-top:8px">
+    <input type="text" id="newCarName" class="form-control" placeholder="新しい自動車名">
+    <button class="btn btn-primary btn-sm" onclick="addCar()">追加</button>
+  </div>
+  <div id="addCarErr" class="alert alert-danger" style="display:none;margin-top:6px;padding:6px 10px;font-size:12px"></div>
+
+  <div class="btn-footer">
+    <button class="btn btn-secondary" onclick="google.script.host.close()">キャンセル</button>
+    <button class="btn btn-primary" onclick="saveSettings()">設定を保存</button>
+  </div>
+</div>
+
+<script>
+const initialSettings = <?!= settings ?>;
+let carList = <?!= carList ?>;
+
+window.onload = function() {
+  document.getElementById('exportFolderId').value = initialSettings.exportFolderId || '';
+  renderCarList();
+  renderDefaultCarSelect();
+};
+
+// ---- 自動車リスト描画 ----
+function renderCarList() {
+  const area = document.getElementById('carListArea');
+  if (carList.length === 0) {
+    area.innerHTML = '<div style="color:#999;font-size:12px;padding:6px">登録された自動車はありません。</div>';
+    return;
+  }
+  area.innerHTML = carList.map(name => `
+    <div class="car-list-item">
+      <span>${escHtml(name)}</span>
+      <button class="btn btn-danger btn-sm" onclick="deleteCar('${escHtml(name)}')">削除</button>
+    </div>
+  `).join('');
+}
+
+// ---- デフォルト自動車セレクト ----
+function renderDefaultCarSelect() {
+  const sel = document.getElementById('defaultCar');
+  // 現在のオプションをリセット（最初の「なし」だけ残す）
+  while (sel.options.length > 1) sel.remove(1);
+  carList.forEach(name => {
+    const opt = document.createElement('option');
+    opt.value = name; opt.textContent = name;
+    sel.appendChild(opt);
+  });
+  sel.value = initialSettings.defaultCar || '';
+}
+
+// ---- 自動車追加 ----
+function addCar() {
+  const name = document.getElementById('newCarName').value.trim();
+  if (!name) { showAddCarErr('名前を入力してください。'); return; }
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      if (res.success) {
+        carList.push(res.carName);
+        renderCarList();
+        renderDefaultCarSelect();
+        document.getElementById('newCarName').value = '';
+        document.getElementById('addCarErr').style.display = 'none';
+        showSuccess('「' + res.carName + '」を追加しました。');
+      } else {
+        showAddCarErr(res.error);
+      }
+    })
+    .withFailureHandler(err => showAddCarErr(err.message))
+    .addCar(name);
+}
+
+// ---- 自動車削除 ----
+function deleteCar(name) {
+  if (!confirm(`「${name}」のシートを削除してよろしいですか？\n※ このシートの整備記録が全て削除されます。`)) return;
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      if (res.success) {
+        carList = carList.filter(c => c !== name);
+        renderCarList();
+        renderDefaultCarSelect();
+        showSuccess('「' + name + '」を削除しました。');
+      } else {
+        showAlert('削除エラー: ' + res.error);
+      }
+    })
+    .withFailureHandler(err => showAlert('エラー: ' + err.message))
+    .deleteCar(name);
+}
+
+// ---- 設定保存 ----
+function saveSettings() {
+  const settings = {
+    exportFolderId: document.getElementById('exportFolderId').value.trim(),
+    defaultCar:     document.getElementById('defaultCar').value
+  };
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      if (res.success) {
+        showSuccess('設定を保存しました。');
+        setTimeout(() => google.script.host.close(), 1200);
+      } else {
+        showAlert('保存エラー: ' + res.error);
+      }
+    })
+    .withFailureHandler(err => showAlert('エラー: ' + err.message))
+    .saveSettings(settings);
+}
+
+function showAddCarErr(msg) {
+  const el = document.getElementById('addCarErr');
+  el.textContent = msg; el.style.display = 'block';
+}
+function showAlert(msg) {
+  const el = document.getElementById('alertBox');
+  el.textContent = msg; el.style.display = 'block';
+  document.getElementById('successBox').style.display = 'none';
+}
+function showSuccess(msg) {
+  const el = document.getElementById('successBox');
+  el.textContent = msg; el.style.display = 'block';
+  document.getElementById('alertBox').style.display = 'none';
+}
+function escHtml(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+</script>
+</body>
+</html>

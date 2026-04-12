@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <base target="_top">
+  <title>整備記録入力</title>
+  <?!= include('Stylesheet') ?>
+  <style>
+    body { padding: 0; }
+    .form-wrap { padding: 14px 16px; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 18px; }
+    .form-group { margin-bottom: 10px; }
+    .full-width { grid-column: 1 / -1; }
+    .btn-footer { display: flex; justify-content: flex-end; gap: 8px; padding-top: 10px; border-top: 1px solid #e0e0e0; margin-top: 4px; }
+    .car-select-row { display: flex; gap: 6px; }
+    .car-select-row select { flex: 1; }
+    .inline-check { display: flex; align-items: center; gap: 6px; height: 34px; }
+    .inline-check input[type=checkbox] { width: 16px; height: 16px; cursor: pointer; }
+    .status-panel { background: #F1F8E9; border: 1px solid #AED581; border-radius: 8px; padding: 10px 14px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .stat-item .stat-label { font-size: 11px; color: #555; font-weight: 600; }
+    .stat-item .stat-val   { font-size: 17px; font-weight: bold; color: #2E7D32; }
+    .stat-item .stat-unit  { font-size: 11px; color: #777; margin-left: 3px; }
+    .stat-item .stat-none  { font-size: 13px; color: #999; }
+    h5.section-title { font-size: 13px; font-weight: bold; color: #2E7D32; margin: 10px 0 6px; padding-left: 8px; border-left: 3px solid #2E7D32; }
+  </style>
+</head>
+<body>
+<div class="form-wrap">
+  <div id="alertBox" style="display:none" class="alert alert-danger"></div>
+
+  <!-- ステータスパネル（常時表示） -->
+  <div class="status-panel" id="statusPanel" style="margin-bottom:12px">
+    <div class="stat-item">
+      <div class="stat-label">前回OIL交換からの距離</div>
+      <div id="statOilDist"><span class="stat-none">---</span></div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-label">直近の燃費</div>
+      <div id="statFuelEco"><span class="stat-none">---</span></div>
+    </div>
+  </div>
+
+  <form id="mainForm" onsubmit="return false;">
+    <div class="form-grid">
+
+      <!-- ===== 左カラム ===== -->
+
+      <!-- 自動車名 -->
+      <div class="form-group">
+        <label class="form-label required-mark">自動車名</label>
+        <div class="car-select-row">
+          <select id="carName" class="form-select" onchange="onCarChange()">
+            <option value="">--- 選択 ---</option>
+          </select>
+          <button type="button" class="btn btn-info btn-sm" onclick="showAddCarDialog()">追加</button>
+        </div>
+      </div>
+
+      <!-- 整備年月日 -->
+      <div class="form-group">
+        <label class="form-label required-mark">整備年月日</label>
+        <input type="date" id="date" class="form-control">
+      </div>
+
+      <!-- 整備種別 -->
+      <div class="form-group">
+        <label class="form-label required-mark">整備種別</label>
+        <select id="type" class="form-select" onchange="onTypeChange()">
+          <option value="">--- 選択 ---</option>
+        </select>
+      </div>
+
+      <!-- 料金 -->
+      <div class="form-group">
+        <label class="form-label">料金（円）</label>
+        <input type="number" id="cost" class="form-control" placeholder="例: 3500" min="0">
+      </div>
+
+      <!-- OILエレメント（オイル交換時のみ） -->
+      <div class="form-group" id="rowOilElem" style="display:none">
+        <label class="form-label">OILエレメント交換</label>
+        <div class="inline-check">
+          <input type="checkbox" id="oilElement">
+          <label for="oilElement" style="cursor:pointer">交換あり</label>
+        </div>
+      </div>
+
+      <!-- 給油量（給油時のみ） -->
+      <div class="form-group" id="rowFuelAmt" style="display:none">
+        <label class="form-label required-mark" id="lblFuelAmt">給油量（L）</label>
+        <input type="number" id="fuelAmount" class="form-control" placeholder="例: 40.5" step="0.01" min="0">
+      </div>
+
+      <!-- ===== 右カラム ===== -->
+
+      <!-- メーター距離 -->
+      <div class="form-group">
+        <label class="form-label">メーター距離（km）</label>
+        <input type="number" id="odometer" class="form-control" placeholder="例: 52340" min="0" oninput="onOdometerChange()">
+      </div>
+
+      <!-- 給油状態（給油時のみ） -->
+      <div class="form-group" id="rowFuelStatus" style="display:none">
+        <label class="form-label required-mark">給油状態</label>
+        <select id="fuelStatus" class="form-select" onchange="onFuelStatusChange()">
+          <option value="">--- 選択 ---</option>
+        </select>
+      </div>
+
+      <!-- 燃費表示（給油・満タン時のみ） -->
+      <div class="form-group" id="rowFuelEcoPreview" style="display:none">
+        <label class="form-label">燃費（参考）</label>
+        <div id="fuelEcoPreview" style="height:34px;display:flex;align-items:center;font-size:16px;font-weight:bold;color:#2E7D32;padding-left:4px">
+          <span id="fuelEcoVal">---</span>
+        </div>
+      </div>
+
+      <!-- メモ -->
+      <div class="form-group">
+        <label class="form-label">メモ</label>
+        <textarea id="memo" class="form-control" rows="2" placeholder="作業メモなど"></textarea>
+      </div>
+
+      <!-- 摘要 -->
+      <div class="form-group">
+        <label class="form-label">摘要</label>
+        <textarea id="summary" class="form-control" rows="2" placeholder="請求先・作業概要など"></textarea>
+      </div>
+
+    </div><!-- /form-grid -->
+
+    <!-- 写真URL（全幅） -->
+    <hr class="section-divider">
+    <h5 class="section-title">写真（Google Drive 共有URL）</h5>
+    <div id="photoList"></div>
+    <button type="button" class="btn btn-secondary btn-sm" onclick="addPhotoField()" id="btnAddPhoto">+ URLを追加</button>
+
+    <div class="btn-footer">
+      <button type="button" class="btn btn-secondary" onclick="google.script.host.close()">キャンセル</button>
+      <button type="button" class="btn btn-primary" id="btnSave" onclick="submitForm()">
+        <span id="btnSaveText">保存</span>
+      </button>
+    </div>
+  </form>
+</div>
+
+<!-- 自動車追加ダイアログ -->
+<div id="addCarOverlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.4);z-index:100">
+  <div style="background:#fff;border-radius:10px;padding:20px;width:300px;margin:120px auto;">
+    <h6 style="margin-bottom:12px;font-weight:bold">自動車を追加</h6>
+    <input type="text" id="newCarName" class="form-control" placeholder="自動車名を入力" style="margin-bottom:12px">
+    <div id="addCarError" class="alert alert-danger" style="display:none;padding:6px 10px;font-size:12px"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn btn-secondary btn-sm" onclick="hideAddCarDialog()">キャンセル</button>
+      <button class="btn btn-primary btn-sm" onclick="doAddCar()">追加</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ---- サーバーから受け取ったデータ ----
+const editData          = <?!= editData ?>;
+const carList           = <?!= carList ?>;
+const maintenanceTypes  = <?!= maintenanceTypes ?>;
+const fuelStatusOptions = <?!= fuelStatusOptions ?>;
+
+let isEdit = (editData !== null);
+
+// ---- 初期化 ----
+window.onload = function() {
+  // 自動車リスト
+  const sel = document.getElementById('carName');
+  carList.forEach(name => {
+    const opt = document.createElement('option');
+    opt.value = name; opt.textContent = name;
+    sel.appendChild(opt);
+  });
+
+  // 整備種別
+  const typeSel = document.getElementById('type');
+  maintenanceTypes.forEach(t => {
+    const opt = document.createElement('option');
+    opt.value = t; opt.textContent = t;
+    typeSel.appendChild(opt);
+  });
+
+  // 給油状態
+  const fsSel = document.getElementById('fuelStatus');
+  fuelStatusOptions.forEach(s => {
+    const opt = document.createElement('option');
+    opt.value = s; opt.textContent = s;
+    fsSel.appendChild(opt);
+  });
+
+  // デフォルト日付：今日
+  if (!isEdit) {
+    const today = new Date();
+    const ymd = today.getFullYear() + '-'
+      + String(today.getMonth() + 1).padStart(2,'0') + '-'
+      + String(today.getDate()).padStart(2,'0');
+    document.getElementById('date').value = ymd;
+  }
+
+  // 編集モードの場合はデータを埋める
+  if (isEdit) {
+    fillEditData(editData);
+  } else if (carList.length > 0) {
+    sel.value = carList[0];
+    loadCarSummary(carList[0]);
+  }
+
+  onTypeChange();
+  addPhotoField(); // 最低1枠
+};
+
+// ---- 編集データをフォームに反映 ----
+function fillEditData(d) {
+  setVal('carName',   d.carName  || '');
+  setVal('type',      d.type     || '');
+  setVal('cost',      d.cost     || '');
+  setVal('odometer',  d.odometer || '');
+  setVal('memo',      d.memo     || '');
+  setVal('summary',   d.summary  || '');
+  setVal('fuelAmount', d.fuelAmount || '');
+  setVal('fuelStatus', d.fuelStatus || '');
+  document.getElementById('oilElement').checked = (d.oilElement === '○');
+
+  // 日付
+  if (d.date) {
+    const dateParts = d.date.replace(/\//g, '-');
+    document.getElementById('date').value = dateParts;
+  }
+
+  // 写真
+  if (d.photos && d.photos.length > 0) {
+    d.photos.forEach(url => addPhotoField(url));
+  }
+
+  loadCarSummary(d.carName);
+  onTypeChange();
+}
+
+// ---- 自動車変更 ----
+function onCarChange() {
+  const car = document.getElementById('carName').value;
+  if (car) loadCarSummary(car);
+  else clearSummary();
+}
+
+function loadCarSummary(carName) {
+  if (!carName) { clearSummary(); return; }
+  google.script.run
+    .withSuccessHandler(showSummary)
+    .withFailureHandler(console.error)
+    .getCarSummary(carName);
+}
+
+function showSummary(data) {
+  const oilEl = document.getElementById('statOilDist');
+  const fuelEl = document.getElementById('statFuelEco');
+
+  if (data.oilDistance !== null && data.oilDistance !== undefined && data.oilDistance !== '') {
+    oilEl.innerHTML = `<span class="stat-val">${Number(data.oilDistance).toLocaleString()}</span><span class="stat-unit">km</span>`;
+  } else {
+    oilEl.innerHTML = '<span class="stat-none">記録なし</span>';
+  }
+
+  if (data.latestFuelEconomy !== null && data.latestFuelEconomy !== undefined && data.latestFuelEconomy !== '') {
+    fuelEl.innerHTML = `<span class="stat-val">${data.latestFuelEconomy}</span><span class="stat-unit">km/L</span>`;
+  } else {
+    fuelEl.innerHTML = '<span class="stat-none">記録なし</span>';
+  }
+}
+
+function clearSummary() {
+  document.getElementById('statOilDist').innerHTML = '<span class="stat-none">---</span>';
+  document.getElementById('statFuelEco').innerHTML = '<span class="stat-none">---</span>';
+}
+
+// ---- 整備種別変更でフィールドを切替 ----
+function onTypeChange() {
+  const type = document.getElementById('type').value;
+  const isFuel = (type === '給油');
+  const isOil  = (type === 'オイル交換');
+
+  setVisible('rowFuelAmt',    isFuel);
+  setVisible('rowFuelStatus', isFuel);
+  setVisible('rowOilElem',    isOil);
+
+  // 給油 + 満タン のとき燃費プレビューを表示
+  if (isFuel) {
+    onFuelStatusChange();
+  } else {
+    setVisible('rowFuelEcoPreview', false);
+  }
+}
+
+// ---- 給油状態変更 ----
+function onFuelStatusChange() {
+  const type = document.getElementById('type').value;
+  const fs   = document.getElementById('fuelStatus').value;
+  setVisible('rowFuelEcoPreview', type === '給油' && fs === '満タン');
+  if (type === '給油' && fs === '満タン') calcFuelEcoPreview();
+}
+
+// ---- オドメーター変更 ----
+function onOdometerChange() {
+  const type = document.getElementById('type').value;
+  const fs   = document.getElementById('fuelStatus').value;
+  if (type === '給油' && fs === '満タン') calcFuelEcoPreview();
+}
+
+// ---- 燃費プレビュー計算（クライアント側、参考値） ----
+function calcFuelEcoPreview() {
+  document.getElementById('fuelEcoVal').textContent = '計算中...';
+}
+
+// ---- 写真URLフィールド管理 ----
+function addPhotoField(url) {
+  const list = document.getElementById('photoList');
+  if (list.children.length >= 10) {
+    alert('写真は最大10枚まで登録できます。');
+    return;
+  }
+  const div = document.createElement('div');
+  div.className = 'photo-entry';
+  div.innerHTML = `
+    <input type="text" class="form-control photo-url" placeholder="Google Drive 共有URL" value="${url || ''}">
+    <button type="button" class="btn btn-danger btn-sm" onclick="removePhotoField(this)">削除</button>
+  `;
+  list.appendChild(div);
+}
+
+function removePhotoField(btn) {
+  btn.closest('.photo-entry').remove();
+}
+
+// ---- フォーム送信 ----
+function submitForm() {
+  hideAlert();
+
+  const car  = document.getElementById('carName').value;
+  const date = document.getElementById('date').value;
+  const type = document.getElementById('type').value;
+
+  if (!car)  { showAlert('自動車名を選択してください。');   return; }
+  if (!date) { showAlert('整備年月日を入力してください。'); return; }
+  if (!type) { showAlert('整備種別を選択してください。');   return; }
+
+  const isFuel = (type === '給油');
+  if (isFuel) {
+    if (!document.getElementById('fuelAmount').value) { showAlert('給油量を入力してください。');  return; }
+    if (!document.getElementById('fuelStatus').value) { showAlert('給油状態を選択してください。'); return; }
+  }
+
+  // 写真URLを収集
+  const photos = Array.from(document.querySelectorAll('.photo-url'))
+    .map(el => el.value.trim())
+    .filter(Boolean);
+
+  const data = {
+    carName:    car,
+    date:       date,
+    type:       type,
+    oilElement: document.getElementById('oilElement').checked ? '○' : '',
+    fuelAmount: document.getElementById('fuelAmount').value,
+    cost:       document.getElementById('cost').value,
+    odometer:   document.getElementById('odometer').value,
+    fuelStatus: document.getElementById('fuelStatus').value,
+    memo:       document.getElementById('memo').value,
+    summary:    document.getElementById('summary').value,
+    photos:     photos
+  };
+
+  if (isEdit) data.rowIndex = editData.rowIndex;
+
+  setBtnLoading(true);
+
+  const fn = isEdit
+    ? google.script.run.withSuccessHandler(onSaveSuccess).withFailureHandler(onSaveError).updateRecord
+    : google.script.run.withSuccessHandler(onSaveSuccess).withFailureHandler(onSaveError).saveRecord;
+  fn(data);
+}
+
+function onSaveSuccess(result) {
+  setBtnLoading(false);
+  if (result.success) {
+    google.script.host.close();
+  } else {
+    showAlert('保存エラー: ' + result.error);
+  }
+}
+
+function onSaveError(err) {
+  setBtnLoading(false);
+  showAlert('エラー: ' + (err.message || err));
+}
+
+// ---- 自動車追加ダイアログ ----
+function showAddCarDialog() { document.getElementById('addCarOverlay').style.display = 'block'; }
+function hideAddCarDialog() {
+  document.getElementById('addCarOverlay').style.display = 'none';
+  document.getElementById('newCarName').value = '';
+  document.getElementById('addCarError').style.display = 'none';
+}
+
+function doAddCar() {
+  const name = document.getElementById('newCarName').value.trim();
+  if (!name) { showAddCarErr('名前を入力してください。'); return; }
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      if (res.success) {
+        const sel = document.getElementById('carName');
+        const opt = document.createElement('option');
+        opt.value = res.carName; opt.textContent = res.carName;
+        sel.appendChild(opt);
+        sel.value = res.carName;
+        hideAddCarDialog();
+        loadCarSummary(res.carName);
+      } else {
+        showAddCarErr(res.error);
+      }
+    })
+    .withFailureHandler(err => showAddCarErr(err.message))
+    .addCar(name);
+}
+
+function showAddCarErr(msg) {
+  const el = document.getElementById('addCarError');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+// ---- ユーティリティ ----
+function setVal(id, v)  { const el = document.getElementById(id); if (el) el.value = v; }
+function setVisible(id, show) { document.getElementById(id).style.display = show ? '' : 'none'; }
+
+function showAlert(msg) {
+  const el = document.getElementById('alertBox');
+  el.textContent = msg;
+  el.style.display = 'block';
+  el.scrollIntoView({ behavior: 'smooth' });
+}
+function hideAlert() { document.getElementById('alertBox').style.display = 'none'; }
+
+function setBtnLoading(loading) {
+  const btn = document.getElementById('btnSave');
+  document.getElementById('btnSaveText').textContent = loading ? '保存中...' : '保存';
+  btn.disabled = loading;
+}
+</script>
+</body>
+</html>
