@@ -42,18 +42,28 @@
 
     /* ===== 印刷用スタイル ===== */
     @media print {
-      .toolbar    { display: none !important; }
-      .tabs       { display: none !important; }
-      .stat-bar   { margin-bottom: 8px; }
-      #tabData    { display: flex !important; flex-direction: column; }
-      #tabChart   { display: none !important; }
+      .toolbar     { display: none !important; }
+      .tabs        { display: none !important; }
+      .stat-bar    { margin-bottom: 8px; }
       .action-btns { display: none !important; }
-      .table-wrap { overflow: visible; border: none; }
-      .main-wrap  { padding: 0; height: auto; }
-      body        { background: white; font-size: 11px; }
-      table.maint-table th, table.maint-table td { font-size: 10px; padding: 3px 5px; }
+      .main-wrap   { padding: 0; height: auto; }
+      body         { background: white; font-size: 11px; }
       .print-header { display: block !important; }
       @page { margin: 1.5cm; }
+
+      /* アクティブなタブだけ表示 */
+      .tab-content        { display: none !important; }
+      .tab-content.active { display: block !important; }
+
+      /* データ一覧タブ */
+      #tabData.active     { display: flex !important; flex-direction: column; }
+      .table-wrap         { overflow: visible; border: none; }
+      table.maint-table th, table.maint-table td { font-size: 10px; padding: 3px 5px; }
+
+      /* 燃費グラフタブ */
+      #tabChart.active    { display: block !important; }
+      .chart-wrap         { overflow: visible; padding: 8px 0; }
+      #fuelChart          { max-height: none !important; width: 100% !important; }
     }
     .print-header {
       display: none;
@@ -390,9 +400,15 @@ function doSort() {
 
 // ---- 印刷 ----
 function doPrint() {
-  // データ一覧タブを表示してから印刷
-  switchTab('data');
-  setTimeout(function() { window.print(); }, 300);
+  // 現在表示中のタブをそのまま印刷（データ一覧 or 燃費グラフ）
+  const isChart = document.getElementById('tabChart').classList.contains('active');
+  if (isChart) {
+    // グラフが未描画の場合は先に描画してから印刷
+    renderChart();
+    setTimeout(function() { window.print(); }, 600);
+  } else {
+    setTimeout(function() { window.print(); }, 300);
+  }
 }
 
 // ---- タブ切替 ----
