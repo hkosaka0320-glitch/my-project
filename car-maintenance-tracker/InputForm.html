@@ -22,14 +22,24 @@
     .stat-item .stat-unit  { font-size: 11px; color: #777; margin-left: 3px; }
     .stat-item .stat-none  { font-size: 13px; color: #999; }
     h5.section-title { font-size: 13px; font-weight: bold; color: #2E7D32; margin: 10px 0 6px; padding-left: 8px; border-left: 3px solid #2E7D32; }
+    /* 写真エリア */
+    .photo-entry { display: flex; gap: 6px; margin-bottom: 6px; align-items: center; flex-wrap: wrap; }
+    .photo-entry input[type=text] { flex: 1; min-width: 200px; }
+    .photo-entry .photo-name { font-size: 11px; color: #555; flex-basis: 100%; padding-left: 2px; }
+    .photo-entry .photo-status { font-size: 11px; padding: 2px 8px; border-radius: 10px; white-space: nowrap; }
+    .photo-status.uploading { background: #E3F2FD; color: #0D47A1; }
+    .photo-status.done      { background: #E8F5E9; color: #1B5E20; }
+    .photo-status.error     { background: #FFEBEE; color: #B71C1C; }
+    .photo-btn-row { display: flex; gap: 8px; align-items: center; margin-top: 4px; }
+    .photo-help { font-size: 11px; color: #777; margin-top: 4px; }
   </style>
 </head>
 <body>
 <div class="form-wrap">
   <div id="alertBox" style="display:none" class="alert alert-danger"></div>
 
-  <!-- ステータスパネル（常時表示） -->
-  <div class="status-panel" id="statusPanel" style="margin-bottom:12px">
+  <!-- ステータスパネル -->
+  <div class="status-panel" style="margin-bottom:12px">
     <div class="stat-item">
       <div class="stat-label">前回OIL交換からの距離</div>
       <div id="statOilDist"><span class="stat-none">---</span></div>
@@ -42,8 +52,6 @@
 
   <form id="mainForm" onsubmit="return false;">
     <div class="form-grid">
-
-      <!-- ===== 左カラム ===== -->
 
       <!-- 自動車名 -->
       <div class="form-group">
@@ -87,32 +95,22 @@
 
       <!-- 給油量（給油時のみ） -->
       <div class="form-group" id="rowFuelAmt" style="display:none">
-        <label class="form-label required-mark" id="lblFuelAmt">給油量（L）</label>
+        <label class="form-label required-mark">給油量（L）</label>
         <input type="number" id="fuelAmount" class="form-control" placeholder="例: 40.5" step="0.01" min="0">
       </div>
-
-      <!-- ===== 右カラム ===== -->
 
       <!-- メーター距離 -->
       <div class="form-group">
         <label class="form-label">メーター距離（km）</label>
-        <input type="number" id="odometer" class="form-control" placeholder="例: 52340" min="0" oninput="onOdometerChange()">
+        <input type="number" id="odometer" class="form-control" placeholder="例: 52340" min="0">
       </div>
 
       <!-- 給油状態（給油時のみ） -->
       <div class="form-group" id="rowFuelStatus" style="display:none">
         <label class="form-label required-mark">給油状態</label>
-        <select id="fuelStatus" class="form-select" onchange="onFuelStatusChange()">
+        <select id="fuelStatus" class="form-select">
           <option value="">--- 選択 ---</option>
         </select>
-      </div>
-
-      <!-- 燃費表示（給油・満タン時のみ） -->
-      <div class="form-group" id="rowFuelEcoPreview" style="display:none">
-        <label class="form-label">燃費（参考）</label>
-        <div id="fuelEcoPreview" style="height:34px;display:flex;align-items:center;font-size:16px;font-weight:bold;color:#2E7D32;padding-left:4px">
-          <span id="fuelEcoVal">---</span>
-        </div>
       </div>
 
       <!-- メモ -->
@@ -129,11 +127,30 @@
 
     </div><!-- /form-grid -->
 
-    <!-- 写真URL（全幅） -->
+    <!-- 写真セクション（全幅） -->
     <hr class="section-divider">
-    <h5 class="section-title">写真（Google Drive 共有URL）</h5>
+    <h5 class="section-title">写真</h5>
+
+    <!-- アップロード済み写真一覧 -->
     <div id="photoList"></div>
-    <button type="button" class="btn btn-secondary btn-sm" onclick="addPhotoField()" id="btnAddPhoto">+ URLを追加</button>
+
+    <!-- ボタン行 -->
+    <div class="photo-btn-row">
+      <!-- ファイル選択（エクスプローラーから） -->
+      <input type="file" id="photoFileInput" multiple accept="image/*"
+             style="display:none" onchange="handlePhotoFiles(this)">
+      <button type="button" class="btn btn-primary btn-sm" onclick="document.getElementById('photoFileInput').click()">
+        📁 ファイルを選択
+      </button>
+      <!-- URL手動入力 -->
+      <button type="button" class="btn btn-secondary btn-sm" onclick="addPhotoUrlField()">
+        🔗 URLを手入力
+      </button>
+    </div>
+    <div class="photo-help">
+      「ファイルを選択」でPC上の写真を選ぶと、スプレッドシートと同じGoogle Driveフォルダに自動保存されます。<br>
+      複数ファイルを一度に選択できます（最大10枚）。
+    </div>
 
     <div class="btn-footer">
       <button type="button" class="btn btn-secondary" onclick="google.script.host.close()">キャンセル</button>
@@ -152,90 +169,71 @@
     <div id="addCarError" class="alert alert-danger" style="display:none;padding:6px 10px;font-size:12px"></div>
     <div style="display:flex;gap:8px;justify-content:flex-end">
       <button class="btn btn-secondary btn-sm" onclick="hideAddCarDialog()">キャンセル</button>
-      <button class="btn btn-primary btn-sm" onclick="doAddCar()">追加</button>
+      <button class="btn btn-primary btn-sm"   onclick="doAddCar()">追加</button>
     </div>
   </div>
 </div>
 
 <script>
-// ---- サーバーから受け取ったデータ ----
 const editData          = <?!= editData ?>;
 const carList           = <?!= carList ?>;
 const maintenanceTypes  = <?!= maintenanceTypes ?>;
 const fuelStatusOptions = <?!= fuelStatusOptions ?>;
-
 let isEdit = (editData !== null);
+let uploadingCount = 0; // アップロード中の件数
 
 // ---- 初期化 ----
 window.onload = function() {
-  // 自動車リスト
   const sel = document.getElementById('carName');
   carList.forEach(name => {
     const opt = document.createElement('option');
     opt.value = name; opt.textContent = name;
     sel.appendChild(opt);
   });
-
-  // 整備種別
   const typeSel = document.getElementById('type');
   maintenanceTypes.forEach(t => {
     const opt = document.createElement('option');
     opt.value = t; opt.textContent = t;
     typeSel.appendChild(opt);
   });
-
-  // 給油状態
   const fsSel = document.getElementById('fuelStatus');
   fuelStatusOptions.forEach(s => {
     const opt = document.createElement('option');
     opt.value = s; opt.textContent = s;
     fsSel.appendChild(opt);
   });
-
-  // デフォルト日付：今日
   if (!isEdit) {
     const today = new Date();
-    const ymd = today.getFullYear() + '-'
-      + String(today.getMonth() + 1).padStart(2,'0') + '-'
-      + String(today.getDate()).padStart(2,'0');
-    document.getElementById('date').value = ymd;
+    document.getElementById('date').value =
+      today.getFullYear() + '-' +
+      String(today.getMonth() + 1).padStart(2,'0') + '-' +
+      String(today.getDate()).padStart(2,'0');
   }
-
-  // 編集モードの場合はデータを埋める
   if (isEdit) {
     fillEditData(editData);
   } else if (carList.length > 0) {
     sel.value = carList[0];
     loadCarSummary(carList[0]);
   }
-
   onTypeChange();
-  addPhotoField(); // 最低1枠
 };
 
 // ---- 編集データをフォームに反映 ----
 function fillEditData(d) {
-  setVal('carName',   d.carName  || '');
-  setVal('type',      d.type     || '');
-  setVal('cost',      d.cost     || '');
-  setVal('odometer',  d.odometer || '');
-  setVal('memo',      d.memo     || '');
-  setVal('summary',   d.summary  || '');
+  setVal('carName',    d.carName    || '');
+  setVal('type',       d.type       || '');
+  setVal('cost',       d.cost       || '');
+  setVal('odometer',   d.odometer   || '');
+  setVal('memo',       d.memo       || '');
+  setVal('summary',    d.summary    || '');
   setVal('fuelAmount', d.fuelAmount || '');
   setVal('fuelStatus', d.fuelStatus || '');
   document.getElementById('oilElement').checked = (d.oilElement === '○');
-
-  // 日付
-  if (d.date) {
-    const dateParts = d.date.replace(/\//g, '-');
-    document.getElementById('date').value = dateParts;
-  }
-
-  // 写真
+  if (d.date) document.getElementById('date').value = d.date.replace(/\//g, '-');
+  // 既存の写真URLを表示
   if (d.photos && d.photos.length > 0) {
-    d.photos.forEach(url => addPhotoField(url));
+    d.photos.forEach(url => addPhotoUrlFieldWithValue(url));
   }
-
   loadCarSummary(d.carName);
   onTypeChange();
 }
@@ -243,8 +241,7 @@ function fillEditData(d) {
 // ---- 自動車変更 ----
 function onCarChange() {
   const car = document.getElementById('carName').value;
-  if (car) loadCarSummary(car);
-  else clearSummary();
+  if (car) loadCarSummary(car); else clearSummary();
 }
 
 function loadCarSummary(carName) {
@@ -256,20 +253,14 @@ function loadCarSummary(carName) {
 }
 
 function showSummary(data) {
-  const oilEl = document.getElementById('statOilDist');
+  const oilEl  = document.getElementById('statOilDist');
   const fuelEl = document.getElementById('statFuelEco');
-
-  if (data.oilDistance !== null && data.oilDistance !== undefined && data.oilDistance !== '') {
-    oilEl.innerHTML = `<span class="stat-val">${Number(data.oilDistance).toLocaleString()}</span><span class="stat-unit">km</span>`;
-  } else {
-    oilEl.innerHTML = '<span class="stat-none">記録なし</span>';
-  }
-
-  if (data.latestFuelEconomy !== null && data.latestFuelEconomy !== undefined && data.latestFuelEconomy !== '') {
-    fuelEl.innerHTML = `<span class="stat-val">${data.latestFuelEconomy}</span><span class="stat-unit">km/L</span>`;
-  } else {
-    fuelEl.innerHTML = '<span class="stat-none">記録なし</span>';
-  }
+  oilEl.innerHTML  = (data.oilDistance !== null && data.oilDistance !== undefined && data.oilDistance !== '')
+    ? `<span class="stat-val">${Number(data.oilDistance).toLocaleString()}</span><span class="stat-unit">km</span>`
+    : '<span class="stat-none">記録なし</span>';
+  fuelEl.innerHTML = (data.latestFuelEconomy !== null && data.latestFuelEconomy !== undefined && data.latestFuelEconomy !== '')
+    ? `<span class="stat-val">${data.latestFuelEconomy}</span><span class="stat-unit">km/L</span>`
+    : '<span class="stat-none">記録なし</span>';
 }
 
 function clearSummary() {
@@ -277,67 +268,151 @@ function clearSummary() {
   document.getElementById('statFuelEco').innerHTML = '<span class="stat-none">---</span>';
 }
 
-// ---- 整備種別変更でフィールドを切替 ----
+// ---- 整備種別変更 ----
 function onTypeChange() {
-  const type = document.getElementById('type').value;
-  const isFuel = (type === '給油');
-  const isOil  = (type === 'オイル交換');
-
-  setVisible('rowFuelAmt',    isFuel);
-  setVisible('rowFuelStatus', isFuel);
-  setVisible('rowOilElem',    isOil);
-
-  // 給油 + 満タン のとき燃費プレビューを表示
-  if (isFuel) {
-    onFuelStatusChange();
-  } else {
-    setVisible('rowFuelEcoPreview', false);
-  }
+  const type   = document.getElementById('type').value;
+  setVisible('rowFuelAmt',    type === '給油');
+  setVisible('rowFuelStatus', type === '給油');
+  setVisible('rowOilElem',    type === 'オイル交換');
 }
 
-// ---- 給油状態変更 ----
-function onFuelStatusChange() {
-  const type = document.getElementById('type').value;
-  const fs   = document.getElementById('fuelStatus').value;
-  setVisible('rowFuelEcoPreview', type === '給油' && fs === '満タン');
-  if (type === '給油' && fs === '満タン') calcFuelEcoPreview();
-}
+// ========================================
+// 写真管理
+// ========================================
 
-// ---- オドメーター変更 ----
-function onOdometerChange() {
-  const type = document.getElementById('type').value;
-  const fs   = document.getElementById('fuelStatus').value;
-  if (type === '給油' && fs === '満タン') calcFuelEcoPreview();
-}
+/**
+ * エクスプローラーでファイルを選んだときの処理
+ */
+function handlePhotoFiles(input) {
+  const files = Array.from(input.files);
+  if (files.length === 0) return;
 
-// ---- 燃費プレビュー計算（クライアント側、参考値） ----
-function calcFuelEcoPreview() {
-  document.getElementById('fuelEcoVal').textContent = '計算中...';
-}
-
-// ---- 写真URLフィールド管理 ----
-function addPhotoField(url) {
-  const list = document.getElementById('photoList');
-  if (list.children.length >= 10) {
-    alert('写真は最大10枚まで登録できます。');
+  const car = document.getElementById('carName').value;
+  if (!car) {
+    alert('先に自動車名を選択してください。');
+    input.value = '';
     return;
   }
+
+  const currentCount = document.querySelectorAll('.photo-entry').length;
+  if (currentCount + files.length > 10) {
+    alert('写真は最大10枚です。\n現在 ' + currentCount + ' 枚登録済みです。');
+    input.value = '';
+    return;
+  }
+
+  files.forEach(file => {
+    // ファイルサイズチェック（10MB以下）
+    if (file.size > 10 * 1024 * 1024) {
+      alert(`「${file.name}」はファイルサイズが大きすぎます（10MB以下にしてください）。`);
+      return;
+    }
+    uploadPhotoFile(file, car);
+  });
+
+  input.value = ''; // ファイル選択をリセット
+}
+
+/**
+ * ファイルをBase64に変換してDriveにアップロード
+ */
+function uploadPhotoFile(file, carName) {
+  const entryId = 'photo_' + Date.now() + '_' + Math.random().toString(36).substr(2,6);
+
+  // アップロード中のエントリを追加
+  const list = document.getElementById('photoList');
+  const div  = document.createElement('div');
+  div.className = 'photo-entry';
+  div.id = entryId;
+  div.innerHTML = `
+    <input type="text" class="form-control photo-url" value="" placeholder="アップロード中..." readonly style="color:#999">
+    <span class="photo-status uploading">📤 送信中</span>
+    <span class="photo-name">📄 ${escHtml(file.name)}</span>
+    <button type="button" class="btn btn-danger btn-sm" onclick="removePhotoField(this)">削除</button>
+  `;
+  list.appendChild(div);
+
+  uploadingCount++;
+  updateSaveBtn();
+
+  // FileReader でBase64に変換
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const base64 = e.target.result.split(',')[1];
+    google.script.run
+      .withSuccessHandler(function(res) {
+        uploadingCount--;
+        updateSaveBtn();
+        const entry = document.getElementById(entryId);
+        if (!entry) return;
+        if (res.success) {
+          entry.querySelector('.photo-url').value    = res.fileUrl;
+          entry.querySelector('.photo-url').readOnly = false;
+          entry.querySelector('.photo-url').style.color = '';
+          entry.querySelector('.photo-url').placeholder = 'Google Drive URL';
+          entry.querySelector('.photo-status').textContent = '✅ 保存済';
+          entry.querySelector('.photo-status').className  = 'photo-status done';
+          entry.querySelector('.photo-name').textContent  = '📄 ' + res.fileName;
+        } else {
+          entry.querySelector('.photo-url').placeholder = 'アップロード失敗';
+          entry.querySelector('.photo-status').textContent = '❌ 失敗';
+          entry.querySelector('.photo-status').className  = 'photo-status error';
+          entry.querySelector('.photo-name').textContent  = '⚠️ ' + (res.error || 'エラー');
+        }
+      })
+      .withFailureHandler(function(err) {
+        uploadingCount--;
+        updateSaveBtn();
+        const entry = document.getElementById(entryId);
+        if (entry) {
+          entry.querySelector('.photo-status').textContent = '❌ エラー';
+          entry.querySelector('.photo-status').className  = 'photo-status error';
+          entry.querySelector('.photo-name').textContent  = err.message || 'エラー';
+        }
+      })
+      .savePhotoToDrive(base64, file.name, file.type, carName);
+  };
+  reader.readAsDataURL(file);
+}
+
+/**
+ * URL手動入力フィールドを追加
+ */
+function addPhotoUrlField() {
+  addPhotoUrlFieldWithValue('');
+}
+
+function addPhotoUrlFieldWithValue(url) {
+  const list = document.getElementById('photoList');
+  if (list.children.length >= 10) { alert('写真は最大10枚まです。'); return; }
   const div = document.createElement('div');
   div.className = 'photo-entry';
   div.innerHTML = `
-    <input type="text" class="form-control photo-url" placeholder="Google Drive 共有URL" value="${url || ''}">
+    <input type="text" class="form-control photo-url" placeholder="Google Drive 共有URL" value="${url ? escHtml(url) : ''}">
+    <span class="photo-status done" style="${url ? '' : 'display:none'}">🔗 URL</span>
     <button type="button" class="btn btn-danger btn-sm" onclick="removePhotoField(this)">削除</button>
   `;
   list.appendChild(div);
 }
 
-function removePhotoField(btn) {
-  btn.closest('.photo-entry').remove();
+function removePhotoField(btn) { btn.closest('.photo-entry').remove(); }
+
+// アップロード中は保存ボタンを無効化
+function updateSaveBtn() {
+  const btn = document.getElementById('btnSave');
+  if (uploadingCount > 0) {
+    document.getElementById('btnSaveText').textContent = `アップロード中(${uploadingCount}件)...`;
+    btn.disabled = true;
+  } else {
+    document.getElementById('btnSaveText').textContent = '保存';
+    btn.disabled = false;
+  }
 }
 
 // ---- フォーム送信 ----
 function submitForm() {
   hideAlert();
+  if (uploadingCount > 0) { showAlert('写真のアップロードが完了するまでお待ちください。'); return; }
 
   const car  = document.getElementById('carName').value;
   const date = document.getElementById('date').value;
@@ -347,16 +422,13 @@ function submitForm() {
   if (!date) { showAlert('整備年月日を入力してください。'); return; }
   if (!type) { showAlert('整備種別を選択してください。');   return; }
 
-  const isFuel = (type === '給油');
-  if (isFuel) {
+  if (type === '給油') {
     if (!document.getElementById('fuelAmount').value) { showAlert('給油量を入力してください。');  return; }
     if (!document.getElementById('fuelStatus').value) { showAlert('給油状態を選択してください。'); return; }
   }
 
-  // 写真URLを収集
   const photos = Array.from(document.querySelectorAll('.photo-url'))
-    .map(el => el.value.trim())
-    .filter(Boolean);
+    .map(el => el.value.trim()).filter(Boolean);
 
   const data = {
     carName:    car,
@@ -371,11 +443,9 @@ function submitForm() {
     summary:    document.getElementById('summary').value,
     photos:     photos
   };
-
   if (isEdit) data.rowIndex = editData.rowIndex;
 
   setBtnLoading(true);
-
   const fn = isEdit
     ? google.script.run.withSuccessHandler(onSaveSuccess).withFailureHandler(onSaveError).updateRecord
     : google.script.run.withSuccessHandler(onSaveSuccess).withFailureHandler(onSaveError).saveRecord;
@@ -384,13 +454,9 @@ function submitForm() {
 
 function onSaveSuccess(result) {
   setBtnLoading(false);
-  if (result.success) {
-    google.script.host.close();
-  } else {
-    showAlert('保存エラー: ' + result.error);
-  }
+  if (result.success) { google.script.host.close(); }
+  else { showAlert('保存エラー: ' + result.error); }
 }
-
 function onSaveError(err) {
   setBtnLoading(false);
   showAlert('エラー: ' + (err.message || err));
@@ -403,11 +469,9 @@ function hideAddCarDialog() {
   document.getElementById('newCarName').value = '';
   document.getElementById('addCarError').style.display = 'none';
 }
-
 function doAddCar() {
   const name = document.getElementById('newCarName').value.trim();
   if (!name) { showAddCarErr('名前を入力してください。'); return; }
-
   google.script.run
     .withSuccessHandler(function(res) {
       if (res.success) {
@@ -418,36 +482,32 @@ function doAddCar() {
         sel.value = res.carName;
         hideAddCarDialog();
         loadCarSummary(res.carName);
-      } else {
-        showAddCarErr(res.error);
-      }
+      } else { showAddCarErr(res.error); }
     })
     .withFailureHandler(err => showAddCarErr(err.message))
     .addCar(name);
 }
-
 function showAddCarErr(msg) {
   const el = document.getElementById('addCarError');
-  el.textContent = msg;
-  el.style.display = 'block';
+  el.textContent = msg; el.style.display = 'block';
 }
 
 // ---- ユーティリティ ----
 function setVal(id, v)  { const el = document.getElementById(id); if (el) el.value = v; }
 function setVisible(id, show) { document.getElementById(id).style.display = show ? '' : 'none'; }
-
 function showAlert(msg) {
   const el = document.getElementById('alertBox');
-  el.textContent = msg;
-  el.style.display = 'block';
+  el.textContent = msg; el.style.display = 'block';
   el.scrollIntoView({ behavior: 'smooth' });
 }
 function hideAlert() { document.getElementById('alertBox').style.display = 'none'; }
-
 function setBtnLoading(loading) {
-  const btn = document.getElementById('btnSave');
   document.getElementById('btnSaveText').textContent = loading ? '保存中...' : '保存';
-  btn.disabled = loading;
+  document.getElementById('btnSave').disabled = loading;
+}
+function escHtml(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 </script>
 </body>

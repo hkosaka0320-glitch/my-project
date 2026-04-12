@@ -192,3 +192,60 @@ function recalculateAllData() {
   cars.forEach(car => recalculateCarData(car));
   SpreadsheetApp.getUi().alert('再計算が完了しました。');
 }
+
+/**
+ * シートのデータを日付順（昇順）に並び替え
+ * @param {string} carName
+ * @returns {Object} { success, error }
+ */
+function sortSheetByDate(carName) {
+  try {
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(carName);
+    if (!sheet) return { success: false, error: 'シートが見つかりません。' };
+    const lastRow = sheet.getLastRow();
+    if (lastRow < DATA_START_ROW + 1) return { success: true };
+    const range = sheet.getRange(DATA_START_ROW, 1, lastRow - HEADER_ROW, HEADERS.length);
+    range.sort({ column: COL.DATE, ascending: true });
+    recalculateCarData(carName);
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
+
+/**
+ * 写真ファイルをGoogle Driveに保存
+ * スプレッドシートと同じフォルダ内に「写真_車名」フォルダを作成して保存
+ * @param {string} base64Data - Base64エンコードされたファイルデータ
+ * @param {string} fileName   - ファイル名
+ * @param {string} mimeType   - MIMEタイプ
+ * @param {string} carName    - 自動車名（サブフォルダ名に使用）
+ * @returns {Object} { success, fileUrl, fileName, error }
+ */
+function savePhotoToDrive(base64Data, fileName, mimeType, carName) {
+  try {
+    const ss      = SpreadsheetApp.getActiveSpreadsheet();
+    const ssFile  = DriveApp.getFileById(ss.getId());
+    const parents = ssFile.getParents();
+    const parentFolder = parents.hasNext() ? parents.next() : DriveApp.getRootFolder();
+
+    // 写真用サブフォルダを取得または作成
+    const folderName = '写真_' + (carName || '共通');
+    let photoFolder;
+    const folders = parentFolder.getFoldersByName(folderName);
+    photoFolder = folders.hasNext() ? folders.next() : parentFolder.createFolder(folderName);
+
+    // Base64 → Blob → Drive に保存
+    const blob = Utilities.newBlob(
+      Utilities.base64Decode(base64Data),
+      mimeType,
+      fileName
+    );
+    const file = photoFolder.createFile(blob);
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+
+    return { success: true, fileUrl: file.getUrl(), fileName: file.getName() };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}

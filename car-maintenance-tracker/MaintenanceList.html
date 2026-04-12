@@ -9,37 +9,67 @@
   <style>
     body { padding: 0; }
     .main-wrap { display: flex; flex-direction: column; height: 100vh; padding: 12px; box-sizing: border-box; }
-    .toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+    .toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
     .tabs { display: flex; gap: 4px; margin-bottom: 8px; }
     .tab-btn { padding: 5px 18px; border: 1px solid #ccc; background: #f5f5f5; border-radius: 6px 6px 0 0; cursor: pointer; font-size: 12px; font-weight: 600; }
     .tab-btn.active { background: #2E7D32; color: white; border-color: #2E7D32; }
     .tab-content { display: none; flex: 1; overflow: hidden; }
     .tab-content.active { display: flex; flex-direction: column; }
     .table-wrap { overflow: auto; flex: 1; border: 1px solid #ddd; border-radius: 0 6px 6px 6px; }
-    .stat-bar { display: flex; gap: 12px; margin-bottom: 10px; }
-    .stat-card { background: #E8F5E9; border: 1px solid #A5D6A7; border-radius: 8px; padding: 8px 16px; min-width: 160px; }
+    .stat-bar { display: flex; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; }
+    .stat-card { background: #E8F5E9; border: 1px solid #A5D6A7; border-radius: 8px; padding: 8px 16px; min-width: 140px; }
     .stat-card.warn { background: #FFF8E1; border-color: #FFE082; }
     .stat-card .s-label { font-size: 11px; color: #555; font-weight: 600; }
     .stat-card .s-val   { font-size: 18px; font-weight: bold; color: #1B5E20; }
     .stat-card.warn .s-val { color: #E65100; }
     .stat-card .s-unit  { font-size: 11px; color: #777; margin-left: 3px; }
     .chart-wrap { flex: 1; overflow: auto; padding: 12px; }
-    .filter-row { display: flex; gap: 8px; align-items: center; }
-    select.toolbar-sel { height: 32px; font-size: 12px; border: 1px solid #ccc; border-radius: 6px; padding: 0 8px; min-width: 160px; }
-    input.toolbar-input { height: 32px; font-size: 12px; border: 1px solid #ccc; border-radius: 6px; padding: 0 8px; width: 160px; }
+    select.toolbar-sel { height: 32px; font-size: 12px; border: 1px solid #ccc; border-radius: 6px; padding: 0 8px; min-width: 150px; }
+    input.toolbar-input { height: 32px; font-size: 12px; border: 1px solid #ccc; border-radius: 6px; padding: 0 8px; width: 140px; }
     .action-btns { display: flex; gap: 4px; }
     .no-data { text-align: center; padding: 40px; color: #999; }
     td.td-date   { white-space: nowrap; }
     td.td-num    { text-align: right; }
     td.td-center { text-align: center; }
-    .type-badge  { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 600; white-space: nowrap; }
+    .type-badge { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 600; white-space: nowrap; }
     .fuel-eco-good { color: #1B5E20; font-weight: bold; }
     .fuel-eco-bad  { color: #E53935; font-weight: bold; }
     .photos-cell a { font-size: 10px; display: inline-block; margin: 1px; }
+    /* 行クリック用スタイル */
+    table.maint-table tbody tr { cursor: pointer; }
+    table.maint-table tbody tr:hover td { filter: brightness(0.92); }
+    .row-hint { font-size: 10px; color: #999; margin-top: 4px; }
+
+    /* ===== 印刷用スタイル ===== */
+    @media print {
+      .toolbar    { display: none !important; }
+      .tabs       { display: none !important; }
+      .stat-bar   { margin-bottom: 8px; }
+      #tabData    { display: flex !important; flex-direction: column; }
+      #tabChart   { display: none !important; }
+      .action-btns { display: none !important; }
+      .table-wrap { overflow: visible; border: none; }
+      .main-wrap  { padding: 0; height: auto; }
+      body        { background: white; font-size: 11px; }
+      table.maint-table th, table.maint-table td { font-size: 10px; padding: 3px 5px; }
+      .print-header { display: block !important; }
+      @page { margin: 1.5cm; }
+    }
+    .print-header {
+      display: none;
+      font-size: 16px;
+      font-weight: bold;
+      margin-bottom: 8px;
+      padding-bottom: 6px;
+      border-bottom: 2px solid #333;
+    }
   </style>
 </head>
 <body>
 <div class="main-wrap">
+
+  <!-- 印刷時ヘッダー -->
+  <div class="print-header" id="printHeader">整備記録一覧</div>
 
   <!-- ツールバー -->
   <div class="toolbar">
@@ -51,20 +81,17 @@
     <label style="font-weight:600;font-size:13px">種別：</label>
     <select id="typeFilter" class="toolbar-sel" onchange="renderTable()">
       <option value="">すべて</option>
-      <option>給油</option>
-      <option>オイル交換</option>
-      <option>タイヤ交換</option>
-      <option>車検</option>
-      <option>保険</option>
-      <option>ワイパー交換</option>
-      <option>洗車</option>
-      <option>その他整備</option>
+      <option>給油</option><option>オイル交換</option><option>タイヤ交換</option>
+      <option>車検</option><option>保険</option><option>ワイパー交換</option>
+      <option>洗車</option><option>その他整備</option>
     </select>
 
     <input type="text" id="searchBox" class="toolbar-input" placeholder="キーワード検索" oninput="renderTable()">
 
-    <button class="btn btn-primary btn-sm" onclick="onCarChange()">再読込</button>
-    <button class="btn btn-warning btn-sm" onclick="doRecalc()">再計算</button>
+    <button class="btn btn-primary btn-sm"  onclick="onCarChange()">再読込</button>
+    <button class="btn btn-warning btn-sm"  onclick="doRecalc()">再計算</button>
+    <button class="btn btn-info btn-sm"     onclick="doSort()">日付順並び替え</button>
+    <button class="btn btn-secondary btn-sm" onclick="doPrint()">印刷</button>
     <button class="btn btn-secondary btn-sm" onclick="google.script.host.close()">閉じる</button>
   </div>
 
@@ -91,11 +118,12 @@
   <!-- タブ -->
   <div class="tabs">
     <button class="tab-btn active" onclick="switchTab('data')">データ一覧</button>
-    <button class="tab-btn" onclick="switchTab('chart')">燃費グラフ</button>
+    <button class="tab-btn"        onclick="switchTab('chart')">燃費グラフ</button>
   </div>
 
   <!-- データ一覧タブ -->
   <div id="tabData" class="tab-content active">
+    <div class="row-hint">※ 行をクリックすると編集できます</div>
     <div class="table-wrap">
       <div id="tableArea"><div class="no-data">自動車を選択してください。</div></div>
     </div>
@@ -141,13 +169,14 @@ function onCarChange() {
 function loadRecords(carName) {
   google.script.run
     .withSuccessHandler(function(data) {
-      allRecords = (data || []).reverse(); // 新しい順
+      allRecords = (data || []).reverse(); // 新しい順（表示）
       renderTable();
       loadSummary(carName);
       if (document.getElementById('tabChart').classList.contains('active')) renderChart();
     })
     .withFailureHandler(function(err) {
-      document.getElementById('tableArea').innerHTML = `<div class="no-data" style="color:#c62828">読み込みエラー: ${err.message}</div>`;
+      document.getElementById('tableArea').innerHTML =
+        `<div class="no-data" style="color:#c62828">読み込みエラー: ${err.message}</div>`;
     })
     .getRecords(carName);
 }
@@ -156,8 +185,10 @@ function loadSummary(carName) {
   google.script.run
     .withSuccessHandler(function(s) {
       document.getElementById('statBar').style.display = '';
-      document.getElementById('sLatestEco').textContent = s.latestFuelEconomy !== null ? s.latestFuelEconomy : '---';
-      document.getElementById('sOilDist').textContent   = s.oilDistance !== null ? Number(s.oilDistance).toLocaleString() : '---';
+      document.getElementById('sLatestEco').textContent =
+        s.latestFuelEconomy !== null ? s.latestFuelEconomy : '---';
+      document.getElementById('sOilDist').textContent =
+        s.oilDistance !== null ? Number(s.oilDistance).toLocaleString() : '---';
     })
     .withFailureHandler(console.error)
     .getCarSummary(carName);
@@ -165,8 +196,13 @@ function loadSummary(carName) {
 
 // ---- テーブル描画 ----
 function renderTable() {
+  const car        = document.getElementById('carSelect').value;
   const typeFilter = document.getElementById('typeFilter').value;
   const keyword    = document.getElementById('searchBox').value.trim().toLowerCase();
+
+  // 印刷ヘッダーを更新
+  document.getElementById('printHeader').textContent =
+    (car ? car + ' ' : '') + '整備記録一覧　' + new Date().toLocaleDateString('ja-JP');
 
   let filtered = allRecords.filter(r => {
     if (typeFilter && r.type !== typeFilter) return false;
@@ -185,31 +221,22 @@ function renderTable() {
     return;
   }
 
-  let html = `<table class="maint-table">
-    <thead><tr>
-      <th>日付</th>
-      <th>種別</th>
-      <th>エレメント</th>
-      <th>給油量(L)</th>
-      <th>料金(円)</th>
-      <th>距離(km)</th>
-      <th>給油状態</th>
-      <th>燃費(km/L)</th>
-      <th>OIL距離(km)</th>
-      <th>メモ</th>
-      <th>摘要</th>
-      <th>写真</th>
-      <th>操作</th>
-    </tr></thead>
-    <tbody>`;
+  let html = `<table class="maint-table"><thead><tr>
+    <th>日付</th><th>種別</th><th>エレメント</th><th>給油量(L)</th>
+    <th>料金(円)</th><th>距離(km)</th><th>給油状態</th>
+    <th>燃費(km/L)</th><th>OIL距離(km)</th><th>メモ</th><th>摘要</th><th>写真</th><th>操作</th>
+  </tr></thead><tbody>`;
 
   filtered.forEach(r => {
     const typeBadge = makeTypeBadge(r.type);
-    const eco = r.fuelEconomy !== '' ? `<span class="${r.fuelEconomy >= 15 ? 'fuel-eco-good' : r.fuelEconomy >= 10 ? '' : 'fuel-eco-bad'}">${r.fuelEconomy}</span>` : '';
-    const oilD = r.oilDistance !== '' ? Number(r.oilDistance).toLocaleString() : '';
-    const photos = (r.photos || []).map((p, i) => `<a href="${escHtml(p)}" target="_blank">📷${i+1}</a>`).join(' ');
+    const eco = r.fuelEconomy !== ''
+      ? `<span class="${r.fuelEconomy >= 15 ? 'fuel-eco-good' : r.fuelEconomy >= 10 ? '' : 'fuel-eco-bad'}">${r.fuelEconomy}</span>` : '';
+    const oilD   = r.oilDistance !== '' ? Number(r.oilDistance).toLocaleString() : '';
+    const photos = (r.photos || []).map((p, i) =>
+      `<a href="${escHtml(p)}" target="_blank" onclick="event.stopPropagation()">📷${i+1}</a>`).join(' ');
 
-    html += `<tr>
+    // 行クリックで編集（操作列のみ stopPropagation）
+    html += `<tr onclick="editRecord(${r.rowIndex})" title="クリックして編集">
       <td class="td-date">${escHtml(r.date)}</td>
       <td class="td-center">${typeBadge}</td>
       <td class="td-center">${r.oilElement === '○' ? '○' : ''}</td>
@@ -222,9 +249,11 @@ function renderTable() {
       <td>${escHtml(r.memo)}</td>
       <td>${escHtml(r.summary)}</td>
       <td class="photos-cell">${photos}</td>
-      <td class="action-btns td-center">
-        <button class="btn btn-info btn-sm" onclick="editRecord(${r.rowIndex})">編集</button>
-        <button class="btn btn-danger btn-sm" onclick="deleteRecord(${r.rowIndex}, '${escHtml(r.date)}')">削除</button>
+      <td class="td-center" onclick="event.stopPropagation()">
+        <div class="action-btns">
+          <button class="btn btn-info btn-sm"    onclick="editRecord(${r.rowIndex})">編集</button>
+          <button class="btn btn-danger btn-sm"  onclick="deleteRecord(${r.rowIndex},'${escHtml(r.date)}')">削除</button>
+        </div>
       </td>
     </tr>`;
   });
@@ -235,14 +264,9 @@ function renderTable() {
 
 // ---- 種別バッジ ----
 const BADGE_MAP = {
-  '給油':       'badge-fuel',
-  'オイル交換': 'badge-oil',
-  'タイヤ交換': 'badge-tire',
-  '車検':       'badge-shaken',
-  '保険':       'badge-insurance',
-  'ワイパー交換':'badge-wiper',
-  '洗車':       'badge-wash',
-  'その他整備': 'badge-other'
+  '給油':'badge-fuel','オイル交換':'badge-oil','タイヤ交換':'badge-tire',
+  '車検':'badge-shaken','保険':'badge-insurance','ワイパー交換':'badge-wiper',
+  '洗車':'badge-wash','その他整備':'badge-other'
 };
 function makeTypeBadge(type) {
   const cls = BADGE_MAP[type] || 'badge-other';
@@ -253,7 +277,6 @@ function makeTypeBadge(type) {
 function renderChart() {
   const car = document.getElementById('carSelect').value;
   if (!car) return;
-
   google.script.run
     .withSuccessHandler(function(chartData) {
       const noData = document.getElementById('chartNoData');
@@ -263,13 +286,10 @@ function renderChart() {
         return;
       }
       noData.style.display = 'none';
-
       const labels = chartData.map(d => d.date);
       const values = chartData.map(d => d.fuelEconomy);
       const avg    = (values.reduce((a,b) => a+b, 0) / values.length).toFixed(1);
-
       if (chartInstance) chartInstance.destroy();
-
       chartInstance = new Chart(document.getElementById('fuelChart'), {
         type: 'line',
         data: {
@@ -299,22 +319,13 @@ function renderChart() {
         options: {
           responsive: true,
           plugins: {
-            title: { display: true, text: `${car} 燃費推移`, font: { size: 15 } },
-            legend: { position: 'bottom' },
-            tooltip: {
-              callbacks: {
-                label: ctx => `燃費: ${ctx.raw} km/L`
-              }
-            }
+            title:   { display: true, text: `${car} 燃費推移`, font: { size: 15 } },
+            legend:  { position: 'bottom' },
+            tooltip: { callbacks: { label: ctx => `燃費: ${ctx.raw} km/L` } }
           },
           scales: {
-            y: {
-              title: { display: true, text: 'km/L' },
-              beginAtZero: false
-            },
-            x: {
-              title: { display: true, text: '日付' }
-            }
+            y: { title: { display: true, text: 'km/L' }, beginAtZero: false },
+            x: { title: { display: true, text: '日付' } }
           }
         }
       });
@@ -323,19 +334,15 @@ function renderChart() {
     .getFuelEconomyData(car);
 }
 
-// ---- 編集 ----
+// ---- 編集（行クリック or 編集ボタン） ----
 function editRecord(rowIndex) {
   const car = document.getElementById('carSelect').value;
   const rec = allRecords.find(r => r.rowIndex === rowIndex);
   if (!rec) return;
-
   const editData = Object.assign({}, rec, { carName: car });
-
   google.script.run
-    .withSuccessHandler(function() {
-      google.script.host.close();
-    })
-    .withFailureHandler(function(err) { alert('エラー: ' + err.message); })
+    .withSuccessHandler(function() { google.script.host.close(); })
+    .withFailureHandler(err => alert('エラー: ' + err.message))
     .showInputForm(editData);
 }
 
@@ -343,16 +350,13 @@ function editRecord(rowIndex) {
 function deleteRecord(rowIndex, dateStr) {
   if (!confirm(`${dateStr} の記録を削除してよろしいですか？`)) return;
   const car = document.getElementById('carSelect').value;
-
   google.script.run
     .withSuccessHandler(function(res) {
       if (res.success) {
         allRecords = allRecords.filter(r => r.rowIndex !== rowIndex);
         renderTable();
         loadSummary(car);
-      } else {
-        alert('削除エラー: ' + res.error);
-      }
+      } else { alert('削除エラー: ' + res.error); }
     })
     .withFailureHandler(err => alert('エラー: ' + err.message))
     .deleteRecord(car, rowIndex);
@@ -362,14 +366,33 @@ function deleteRecord(rowIndex, dateStr) {
 function doRecalc() {
   const car = document.getElementById('carSelect').value;
   if (!car) { alert('自動車を選択してください。'); return; }
-
   google.script.run
-    .withSuccessHandler(function() {
-      loadRecords(car);
-      alert('再計算が完了しました。');
-    })
+    .withSuccessHandler(function() { loadRecords(car); alert('再計算が完了しました。'); })
     .withFailureHandler(err => alert('エラー: ' + err.message))
     .recalculateCarData(car);
+}
+
+// ---- 日付順並び替え ----
+function doSort() {
+  const car = document.getElementById('carSelect').value;
+  if (!car) { alert('自動車を選択してください。'); return; }
+  if (!confirm(`「${car}」のデータをスプレッドシート上で\n日付の古い順（昇順）に並び替えますか？\n\n※ この操作はスプレッドシート内のデータを並び替えます。`)) return;
+  google.script.run
+    .withSuccessHandler(function(res) {
+      if (res.success) {
+        loadRecords(car);
+        alert('日付順に並び替えました。');
+      } else { alert('並び替えエラー: ' + res.error); }
+    })
+    .withFailureHandler(err => alert('エラー: ' + err.message))
+    .sortSheetByDate(car);
+}
+
+// ---- 印刷 ----
+function doPrint() {
+  // データ一覧タブを表示してから印刷
+  switchTab('data');
+  setTimeout(function() { window.print(); }, 300);
 }
 
 // ---- タブ切替 ----
@@ -384,7 +407,8 @@ function switchTab(tab) {
 
 // ---- ユーティリティ ----
 function showLoading() {
-  document.getElementById('tableArea').innerHTML = '<div class="loading"><span class="spinner"></span>読み込み中...</div>';
+  document.getElementById('tableArea').innerHTML =
+    '<div class="loading"><span class="spinner"></span>読み込み中...</div>';
 }
 
 function escHtml(s) {
