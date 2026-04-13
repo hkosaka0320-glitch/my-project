@@ -16,22 +16,65 @@
     .add-car-row { display: flex; gap: 6px; }
     .add-car-row input { flex: 1; }
     .btn-footer { display: flex; justify-content: flex-end; gap: 8px; padding-top: 12px; border-top: 1px solid #e0e0e0; margin-top: 8px; }
+    .folder-id-row { display: flex; gap: 6px; align-items: center; }
+    .folder-id-row input { flex: 1; }
+
+    /* ===== フォルダピッカー ===== */
+    .fp-overlay {
+      display: none; position: fixed; top:0; left:0; width:100%; height:100%;
+      background: rgba(0,0,0,0.5); z-index: 200;
+      align-items: center; justify-content: center;
+    }
+    .fp-modal {
+      background: #fff; border-radius: 10px; width: 540px;
+      display: flex; flex-direction: column; overflow: hidden;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+    }
+    .fp-header {
+      background: #2E7D32; color: white;
+      padding: 12px 16px; font-weight: bold; font-size: 14px;
+    }
+    .fp-breadcrumb {
+      padding: 7px 14px; font-size: 12px; color: #444;
+      background: #f5f5f5; border-bottom: 1px solid #ddd;
+      min-height: 34px; display: flex; align-items: center; flex-wrap: wrap; gap: 3px;
+    }
+    .fp-crumb { color: #1565C0; cursor: pointer; text-decoration: underline; }
+    .fp-crumb:hover { color: #0D47A1; }
+    .fp-list { overflow-y: auto; min-height: 80px; max-height: 260px; }
+    .fp-item {
+      display: flex; align-items: center; gap: 8px;
+      padding: 10px 16px; cursor: pointer;
+      border-bottom: 1px solid #f0f0f0; font-size: 13px;
+    }
+    .fp-item:hover { background: #E8F5E9; }
+    .fp-item .fp-icon { font-size: 16px; flex-shrink: 0; }
+    .fp-item .fp-name { flex: 1; }
+    .fp-item .fp-arrow { color: #aaa; font-size: 16px; }
+    .fp-empty { padding: 20px; color: #999; font-size: 12px; text-align: center; }
+    .fp-footer {
+      padding: 10px 14px; border-top: 1px solid #ddd;
+      display: flex; gap: 8px; align-items: center;
+    }
+    .fp-current-info { flex: 1; font-size: 11px; color: #555; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   </style>
 </head>
 <body>
 <div class="wrap">
-  <div id="alertBox" style="display:none" class="alert alert-danger"></div>
+  <div id="alertBox"   style="display:none" class="alert alert-danger"></div>
   <div id="successBox" style="display:none" class="alert alert-success"></div>
 
   <!-- ===== データ保存先 ===== -->
   <div class="section-title">データ保存先（エクスポート）</div>
   <div class="form-group">
-    <label class="form-label">Google Drive フォルダ ID</label>
-    <input type="text" id="exportFolderId" class="form-control" placeholder="フォルダIDを貼り付け">
+    <label class="form-label">Google Drive フォルダ</label>
+    <div class="folder-id-row">
+      <input type="text" id="exportFolderId" class="form-control" placeholder="フォルダIDを貼り付け、または「選択」で参照">
+      <button class="btn btn-info btn-sm" onclick="openFolderPicker()">📂 選択</button>
+    </div>
     <div class="help-text">
-      エクスポート先フォルダのIDを指定します。<br>
-      Google Drive のフォルダ URL 末尾の文字列がフォルダIDです。<br>
-      例: <code>https://drive.google.com/drive/folders/<strong>1abc...xyz</strong></code><br>
+      「📂 選択」でGoogle Driveのフォルダツリーを参照できます。<br>
+      フォルダIDを直接入力することもできます（URLの末尾の文字列）。<br>
       空白の場合はマイドライブのルートに保存されます。
     </div>
   </div>
@@ -48,9 +91,7 @@
 
   <!-- ===== 自動車管理 ===== -->
   <div class="section-title">自動車の管理</div>
-
   <div id="carListArea"></div>
-
   <div class="add-car-row" style="margin-top:8px">
     <input type="text" id="newCarName" class="form-control" placeholder="新しい自動車名">
     <button class="btn btn-primary btn-sm" onclick="addCar()">追加</button>
@@ -59,7 +100,24 @@
 
   <div class="btn-footer">
     <button class="btn btn-secondary" onclick="google.script.host.close()">キャンセル</button>
-    <button class="btn btn-primary" onclick="saveSettings()">設定を保存</button>
+    <button class="btn btn-primary"   onclick="saveSettings()">設定を保存</button>
+  </div>
+</div>
+
+<!-- ===== フォルダピッカーモーダル ===== -->
+<div class="fp-overlay" id="fpOverlay">
+  <div class="fp-modal">
+    <div class="fp-header">📂 エクスポート先フォルダを選択</div>
+    <div class="fp-breadcrumb" id="fpBreadcrumb"></div>
+    <div class="fp-list" id="fpList">
+      <div class="fp-empty">読み込み中...</div>
+    </div>
+    <div class="fp-footer">
+      <span class="fp-current-info" id="fpCurrentInfo">フォルダを選択してください</span>
+      <button class="btn btn-secondary btn-sm" onclick="fpGoUp()" id="fpUpBtn">↑ 上へ</button>
+      <button class="btn btn-primary btn-sm"   onclick="fpSelectCurrent()">このフォルダを選択</button>
+      <button class="btn btn-secondary btn-sm" onclick="closeFolderPicker()">キャンセル</button>
+    </div>
   </div>
 </div>
 
@@ -91,7 +149,6 @@ function renderCarList() {
 // ---- デフォルト自動車セレクト ----
 function renderDefaultCarSelect() {
   const sel = document.getElementById('defaultCar');
-  // 現在のオプションをリセット（最初の「なし」だけ残す）
   while (sel.options.length > 1) sel.remove(1);
   carList.forEach(name => {
     const opt = document.createElement('option');
@@ -105,7 +162,6 @@ function renderDefaultCarSelect() {
 function addCar() {
   const name = document.getElementById('newCarName').value.trim();
   if (!name) { showAddCarErr('名前を入力してください。'); return; }
-
   google.script.run
     .withSuccessHandler(function(res) {
       if (res.success) {
@@ -115,9 +171,7 @@ function addCar() {
         document.getElementById('newCarName').value = '';
         document.getElementById('addCarErr').style.display = 'none';
         showSuccess('「' + res.carName + '」を追加しました。');
-      } else {
-        showAddCarErr(res.error);
-      }
+      } else { showAddCarErr(res.error); }
     })
     .withFailureHandler(err => showAddCarErr(err.message))
     .addCar(name);
@@ -126,7 +180,6 @@ function addCar() {
 // ---- 自動車削除 ----
 function deleteCar(name) {
   if (!confirm(`「${name}」のシートを削除してよろしいですか？\n※ このシートの整備記録が全て削除されます。`)) return;
-
   google.script.run
     .withSuccessHandler(function(res) {
       if (res.success) {
@@ -134,9 +187,7 @@ function deleteCar(name) {
         renderCarList();
         renderDefaultCarSelect();
         showSuccess('「' + name + '」を削除しました。');
-      } else {
-        showAlert('削除エラー: ' + res.error);
-      }
+      } else { showAlert('削除エラー: ' + res.error); }
     })
     .withFailureHandler(err => showAlert('エラー: ' + err.message))
     .deleteCar(name);
@@ -148,20 +199,119 @@ function saveSettings() {
     exportFolderId: document.getElementById('exportFolderId').value.trim(),
     defaultCar:     document.getElementById('defaultCar').value
   };
-
   google.script.run
     .withSuccessHandler(function(res) {
       if (res.success) {
         showSuccess('設定を保存しました。');
         setTimeout(() => google.script.host.close(), 1200);
-      } else {
-        showAlert('保存エラー: ' + res.error);
-      }
+      } else { showAlert('保存エラー: ' + res.error); }
     })
     .withFailureHandler(err => showAlert('エラー: ' + err.message))
     .saveSettings(settings);
 }
 
+// ========================================
+// フォルダピッカー
+// ========================================
+
+let fpStack = []; // [{id: string|null, name: string}] ナビゲーション履歴（現在フォルダ含む）
+
+function openFolderPicker() {
+  fpStack = [{ id: null, name: 'マイドライブ' }];
+  document.getElementById('fpOverlay').style.display = 'flex';
+  fpLoadFolder(null);
+}
+
+function closeFolderPicker() {
+  document.getElementById('fpOverlay').style.display = 'none';
+}
+
+function fpLoadFolder(folderId) {
+  document.getElementById('fpList').innerHTML = '<div class="fp-empty">読み込み中...</div>';
+  fpUpdateUI();
+  google.script.run
+    .withSuccessHandler(fpRenderContents)
+    .withFailureHandler(function(err) {
+      document.getElementById('fpList').innerHTML =
+        `<div style="color:#c62828;padding:12px">エラー: ${escHtml(err.message)}</div>`;
+    })
+    .getDriveFolders(folderId || '');
+}
+
+function fpRenderContents(data) {
+  if (!data.success) {
+    document.getElementById('fpList').innerHTML =
+      `<div style="color:#c62828;padding:12px">エラー: ${escHtml(data.error)}</div>`;
+    return;
+  }
+
+  // 現在スタックの末尾エントリを実際のフォルダ情報で更新
+  fpStack[fpStack.length - 1].id   = data.currentId;
+  fpStack[fpStack.length - 1].name = data.currentName;
+
+  fpUpdateUI();
+
+  const list = document.getElementById('fpList');
+  if (data.folders.length === 0) {
+    list.innerHTML = '<div class="fp-empty">サブフォルダはありません</div>';
+    return;
+  }
+  list.innerHTML = '';
+  data.folders.forEach(function(f) {
+    const div = document.createElement('div');
+    div.className = 'fp-item';
+    div.innerHTML =
+      `<span class="fp-icon">📁</span><span class="fp-name">${escHtml(f.name)}</span><span class="fp-arrow">›</span>`;
+    div.onclick = function() { fpNavigateInto(f.id, f.name); };
+    list.appendChild(div);
+  });
+}
+
+function fpUpdateUI() {
+  // パンくずリスト
+  const bc = document.getElementById('fpBreadcrumb');
+  bc.innerHTML = fpStack.map(function(p, i) {
+    const isLast = i === fpStack.length - 1;
+    if (isLast) {
+      return `<span style="font-weight:bold;color:#1B5E20">${escHtml(p.name)}</span>`;
+    }
+    return `<span class="fp-crumb" onclick="fpGoToIndex(${i})">${escHtml(p.name)}</span> ›`;
+  }).join(' ');
+
+  // 現在フォルダ情報
+  document.getElementById('fpCurrentInfo').textContent =
+    '選択中: ' + fpStack.map(function(f){ return f.name; }).join(' › ');
+
+  // 「上へ」ボタンの有効/無効
+  document.getElementById('fpUpBtn').disabled = fpStack.length <= 1;
+}
+
+function fpNavigateInto(folderId, folderName) {
+  fpStack.push({ id: folderId, name: folderName });
+  fpLoadFolder(folderId);
+}
+
+function fpGoToIndex(index) {
+  fpStack = fpStack.slice(0, index + 1);
+  fpLoadFolder(fpStack[index].id);
+}
+
+function fpGoUp() {
+  if (fpStack.length <= 1) return;
+  fpStack.pop();
+  fpLoadFolder(fpStack[fpStack.length - 1].id);
+}
+
+function fpSelectCurrent() {
+  const current = fpStack[fpStack.length - 1];
+  // ルート（マイドライブ）の場合は空文字にする
+  const isRoot = fpStack.length === 1 && !current.id;
+  document.getElementById('exportFolderId').value = isRoot ? '' : (current.id || '');
+  closeFolderPicker();
+  showSuccess('フォルダを選択しました：' + fpStack.map(function(f){ return f.name; }).join(' › '));
+}
+
+// ---- ユーティリティ ----
 function showAddCarErr(msg) {
   const el = document.getElementById('addCarErr');
   el.textContent = msg; el.style.display = 'block';

@@ -173,3 +173,31 @@ function deleteCar(carName) {
     return { success: false, error: e.message };
   }
 }
+
+/**
+ * Google Drive のフォルダ一覧を取得（フォルダピッカー用）
+ * @param {string} folderId - 親フォルダID（空文字の場合はマイドライブのルート）
+ * @returns {Object} { success, currentId, currentName, folders: [{id, name}], error }
+ */
+function getDriveFolders(folderId) {
+  try {
+    const folder = folderId ? DriveApp.getFolderById(folderId) : DriveApp.getRootFolder();
+
+    const subIter = folder.getFolders();
+    const folders = [];
+    while (subIter.hasNext()) {
+      const sub = subIter.next();
+      folders.push({ id: sub.getId(), name: sub.getName() });
+    }
+    folders.sort(function(a, b) { return a.name.localeCompare(b.name, 'ja'); });
+
+    return {
+      success:     true,
+      currentId:   folder.getId(),
+      currentName: folder.getName(),
+      folders:     folders
+    };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}

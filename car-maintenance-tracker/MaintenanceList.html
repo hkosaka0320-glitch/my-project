@@ -233,7 +233,7 @@ function renderTable() {
 
   let html = `<table class="maint-table"><thead><tr>
     <th>日付</th><th>種別</th><th>エレメント</th><th>給油量(L)</th>
-    <th>料金(円)</th><th>距離(km)</th><th>給油状態</th>
+    <th>料金(円)</th><th>距離(km)</th><th>給油状態</th><th>円/L</th>
     <th>燃費(km/L)</th><th>OIL距離(km)</th><th>メモ</th><th>摘要</th><th>写真</th><th>操作</th>
   </tr></thead><tbody>`;
 
@@ -244,8 +244,12 @@ function renderTable() {
     const oilD   = r.oilDistance !== '' ? Number(r.oilDistance).toLocaleString() : '';
     const photos = (r.photos || []).map((p, i) =>
       `<a href="${escHtml(p)}" target="_blank" onclick="event.stopPropagation()">📷${i+1}</a>`).join(' ');
+    // 円/L（給油かつ給油量>0のときのみ計算）
+    const fuelAmt = parseFloat(r.fuelAmount);
+    const cost    = parseFloat(r.cost);
+    const costPerL = (r.type === '給油' && fuelAmt > 0 && !isNaN(cost))
+      ? (Math.round(cost / fuelAmt * 10) / 10).toFixed(1) : '';
 
-    // 行クリックで編集（操作列のみ stopPropagation）
     html += `<tr onclick="editRecord(${r.rowIndex})" title="クリックして編集">
       <td class="td-date">${escHtml(r.date)}</td>
       <td class="td-center">${typeBadge}</td>
@@ -254,6 +258,7 @@ function renderTable() {
       <td class="td-num">${r.cost !== '' ? Number(r.cost).toLocaleString() : ''}</td>
       <td class="td-num">${r.odometer !== '' ? Number(r.odometer).toLocaleString() : ''}</td>
       <td class="td-center">${escHtml(r.fuelStatus)}</td>
+      <td class="td-num">${costPerL}</td>
       <td class="td-num">${eco}</td>
       <td class="td-num">${oilD}</td>
       <td>${escHtml(r.memo)}</td>
