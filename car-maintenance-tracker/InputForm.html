@@ -27,6 +27,7 @@
     .photo-entry input[type=text] { flex: 1; min-width: 200px; }
     .photo-entry .photo-name { font-size: 11px; color: #555; flex-basis: 100%; padding-left: 2px; }
     .photo-entry .photo-status { font-size: 11px; padding: 2px 8px; border-radius: 10px; white-space: nowrap; }
+    .photo-status.pending   { background: #F3E5F5; color: #6A1B9A; }
     .photo-status.uploading { background: #E3F2FD; color: #0D47A1; }
     .photo-status.done      { background: #E8F5E9; color: #1B5E20; }
     .photo-status.error     { background: #FFEBEE; color: #B71C1C; }
@@ -131,24 +132,22 @@
     <hr class="section-divider">
     <h5 class="section-title">写真</h5>
 
-    <!-- アップロード済み写真一覧 -->
+    <!-- 写真一覧 -->
     <div id="photoList"></div>
 
     <!-- ボタン行 -->
     <div class="photo-btn-row">
-      <!-- ファイル選択（エクスプローラーから） -->
       <input type="file" id="photoFileInput" multiple accept="image/*"
              style="display:none" onchange="handlePhotoFiles(this)">
       <button type="button" class="btn btn-primary btn-sm" onclick="document.getElementById('photoFileInput').click()">
         📁 ファイルを選択
       </button>
-      <!-- URL手動入力 -->
       <button type="button" class="btn btn-secondary btn-sm" onclick="addPhotoUrlField()">
         🔗 URLを手入力
       </button>
     </div>
     <div class="photo-help">
-      「ファイルを選択」でPC上の写真を選ぶと、スプレッドシートと同じGoogle Driveフォルダに自動保存されます。<br>
+      「ファイルを選択」でPC上の写真を選択できます。保存ボタンを押すと他のデータと同時にGoogle Driveへ保存されます。<br>
       複数ファイルを一度に選択できます（最大10枚）。
     </div>
 
@@ -180,7 +179,9 @@ const carList           = <?!= carList ?>;
 const maintenanceTypes  = <?!= maintenanceTypes ?>;
 const fuelStatusOptions = <?!= fuelStatusOptions ?>;
 let isEdit = (editData !== null);
-let uploadingCount = 0; // アップロード中の件数
+
+// 選択済みファイル（未アップロード）
+let pendingFiles = []; // [{ file, entryId }]
 
 // ---- 初期化 ----
 window.onload = function() {
@@ -230,7 +231,6 @@ function fillEditData(d) {
   setVal('fuelStatus', d.fuelStatus || '');
   document.getElementById('oilElement').checked = (d.oilElement === '○');
   if (d.date) document.getElementById('date').value = d.date.replace(/\//g, '-');
-  // 既存の写真URLを表示
   if (d.photos && d.photos.length > 0) {
     d.photos.forEach(url => addPhotoUrlFieldWithValue(url));
   }
@@ -270,18 +270,18 @@ function clearSummary() {
 
 // ---- 整備種別変更 ----
 function onTypeChange() {
-  const type   = document.getElementById('type').value;
+  const type = document.getElementById('type').value;
   setVisible('rowFuelAmt',    type === '給油');
   setVisible('rowFuelStatus', type === '給油');
   setVisible('rowOilElem',    type === 'オイル交換');
 }
 
 // ========================================
-// 写真管理
+// 写真管理（保存ボタン押下時にアップロード）
 // ========================================
 
 /**
- * エクスプローラーでファイルを選んだときの処理
+ * ファイルを選んだときの処理 — アップロードはせずに pending リストに追加
  */
 function handlePhotoFiles(input) {
   const files = Array.from(input.files);
@@ -301,78 +301,47 @@ function handlePhotoFiles(input) {
     return;
   }
 
-  files.forEach(file => {
-    // ファイルサイズチェック（10MB以下）
+  files.forEach(function(file) {
     if (file.size > 10 * 1024 * 1024) {
-      alert(`「${file.name}」はファイルサイズが大きすぎます（10MB以下にしてください）。`);
+      alert('「' + file.name + '」はファイルサイズが大きすぎます（10MB以下にしてください）。');
       return;
     }
-    uploadPhotoFile(file, car);
+    addPendingPhotoEntry(file);
   });
 
-  input.value = ''; // ファイル選択をリセット
+  input.value = '';
 }
 
 /**
- * ファイルをBase64に変換してDriveにアップロード
+ * 選択済みファイルを「保存待ち」としてUIに追加
  */
-function uploadPhotoFile(file, carName) {
-  const entryId = 'photo_' + Date.now() + '_' + Math.random().toString(36).substr(2,6);
+function addPendingPhotoEntry(file) {
+  const entryId = 'photo_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+  pendingFiles.push({ file: file, entryId: entryId });
 
-  // アップロード中のエントリを追加
   const list = document.getElementById('photoList');
   const div  = document.createElement('div');
   div.className = 'photo-entry';
   div.id = entryId;
-  div.innerHTML = `
-    <input type="text" class="form-control photo-url" value="" placeholder="アップロード中..." readonly style="color:#999">
-    <span class="photo-status uploading">📤 送信中</span>
-    <span class="photo-name">📄 ${escHtml(file.name)}</span>
-    <button type="button" class="btn btn-danger btn-sm" onclick="removePhotoField(this)">削除</button>
-  `;
+  div.dataset.pendingId = entryId;
+  div.innerHTML =
+    '<input type="text" class="form-control photo-url" value="" placeholder="保存時にアップロードされます" readonly style="color:#999">' +
+    '<span class="photo-status pending">📎 選択済</span>' +
+    '<span class="photo-name">📄 ' + escHtml(file.name) + '</span>' +
+    '<button type="button" class="btn btn-danger btn-sm" onclick="removePhotoField(this)">削除</button>';
   list.appendChild(div);
+}
 
-  uploadingCount++;
-  updateSaveBtn();
-
-  // FileReader でBase64に変換
-  const reader = new FileReader();
-  reader.onload = function(e) {
-    const base64 = e.target.result.split(',')[1];
-    google.script.run
-      .withSuccessHandler(function(res) {
-        uploadingCount--;
-        updateSaveBtn();
-        const entry = document.getElementById(entryId);
-        if (!entry) return;
-        if (res.success) {
-          entry.querySelector('.photo-url').value    = res.fileUrl;
-          entry.querySelector('.photo-url').readOnly = false;
-          entry.querySelector('.photo-url').style.color = '';
-          entry.querySelector('.photo-url').placeholder = 'Google Drive URL';
-          entry.querySelector('.photo-status').textContent = '✅ 保存済';
-          entry.querySelector('.photo-status').className  = 'photo-status done';
-          entry.querySelector('.photo-name').textContent  = '📄 ' + res.fileName;
-        } else {
-          entry.querySelector('.photo-url').placeholder = 'アップロード失敗';
-          entry.querySelector('.photo-status').textContent = '❌ 失敗';
-          entry.querySelector('.photo-status').className  = 'photo-status error';
-          entry.querySelector('.photo-name').textContent  = '⚠️ ' + (res.error || 'エラー');
-        }
-      })
-      .withFailureHandler(function(err) {
-        uploadingCount--;
-        updateSaveBtn();
-        const entry = document.getElementById(entryId);
-        if (entry) {
-          entry.querySelector('.photo-status').textContent = '❌ エラー';
-          entry.querySelector('.photo-status').className  = 'photo-status error';
-          entry.querySelector('.photo-name').textContent  = err.message || 'エラー';
-        }
-      })
-      .savePhotoToDrive(base64, file.name, file.type, carName);
-  };
-  reader.readAsDataURL(file);
+/**
+ * 写真エントリを削除（pending リストからも除去）
+ */
+function removePhotoField(btn) {
+  const entry = btn.closest('.photo-entry');
+  const pendingId = entry.dataset.pendingId;
+  if (pendingId) {
+    pendingFiles = pendingFiles.filter(function(p) { return p.entryId !== pendingId; });
+  }
+  entry.remove();
 }
 
 /**
@@ -384,35 +353,87 @@ function addPhotoUrlField() {
 
 function addPhotoUrlFieldWithValue(url) {
   const list = document.getElementById('photoList');
-  if (list.children.length >= 10) { alert('写真は最大10枚まです。'); return; }
+  if (list.children.length >= 10) { alert('写真は最大10枚までです。'); return; }
   const div = document.createElement('div');
   div.className = 'photo-entry';
-  div.innerHTML = `
-    <input type="text" class="form-control photo-url" placeholder="Google Drive 共有URL" value="${url ? escHtml(url) : ''}">
-    <span class="photo-status done" style="${url ? '' : 'display:none'}">🔗 URL</span>
-    <button type="button" class="btn btn-danger btn-sm" onclick="removePhotoField(this)">削除</button>
-  `;
+  div.innerHTML =
+    '<input type="text" class="form-control photo-url" placeholder="Google Drive 共有URL" value="' + (url ? escHtml(url) : '') + '">' +
+    '<span class="photo-status done" style="' + (url ? '' : 'display:none') + '">🔗 URL</span>' +
+    '<button type="button" class="btn btn-danger btn-sm" onclick="removePhotoField(this)">削除</button>';
   list.appendChild(div);
 }
 
-function removePhotoField(btn) { btn.closest('.photo-entry').remove(); }
-
-// アップロード中は保存ボタンを無効化
-function updateSaveBtn() {
-  const btn = document.getElementById('btnSave');
-  if (uploadingCount > 0) {
-    document.getElementById('btnSaveText').textContent = `アップロード中(${uploadingCount}件)...`;
-    btn.disabled = true;
-  } else {
-    document.getElementById('btnSaveText').textContent = '保存';
-    btn.disabled = false;
+/**
+ * pending ファイルを1件ずつアップロードしてから callback を呼ぶ（再帰）
+ */
+function uploadNextPendingFile(car, index, callback) {
+  if (index >= pendingFiles.length) {
+    // 全アップロード完了 → データ保存へ
+    pendingFiles = [];
+    callback();
+    return;
   }
+
+  const total = pendingFiles.length;
+  document.getElementById('btnSaveText').textContent =
+    '写真アップロード中 (' + (index + 1) + '/' + total + ')...';
+
+  const item    = pendingFiles[index];
+  const entry   = document.getElementById(item.entryId);
+
+  if (entry) {
+    entry.querySelector('.photo-status').textContent = '📤 送信中';
+    entry.querySelector('.photo-status').className   = 'photo-status uploading';
+  }
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const base64 = e.target.result.split(',')[1];
+    google.script.run
+      .withSuccessHandler(function(res) {
+        if (!res.success) {
+          // アップロード失敗 → エラー表示して中断
+          if (entry) {
+            entry.querySelector('.photo-status').textContent = '❌ 失敗';
+            entry.querySelector('.photo-status').className   = 'photo-status error';
+            entry.querySelector('.photo-name').textContent   = '⚠️ ' + (res.error || 'エラー');
+          }
+          document.getElementById('btnSave').disabled = false;
+          showAlert('写真のアップロードに失敗しました: ' + (res.error || 'エラー'));
+          document.getElementById('btnSaveText').textContent = '保存';
+          return;
+        }
+        // 成功 → URLをセット
+        if (entry) {
+          entry.querySelector('.photo-url').value       = res.fileUrl;
+          entry.querySelector('.photo-url').readOnly    = false;
+          entry.querySelector('.photo-url').style.color = '';
+          entry.querySelector('.photo-url').placeholder = 'Google Drive URL';
+          entry.querySelector('.photo-status').textContent = '✅ 保存済';
+          entry.querySelector('.photo-status').className   = 'photo-status done';
+          entry.querySelector('.photo-name').textContent   = '📄 ' + res.fileName;
+          delete entry.dataset.pendingId; // pending 解除
+        }
+        // 次のファイルへ
+        uploadNextPendingFile(car, index + 1, callback);
+      })
+      .withFailureHandler(function(err) {
+        if (entry) {
+          entry.querySelector('.photo-status').textContent = '❌ エラー';
+          entry.querySelector('.photo-status').className   = 'photo-status error';
+        }
+        document.getElementById('btnSave').disabled = false;
+        document.getElementById('btnSaveText').textContent = '保存';
+        showAlert('写真のアップロードに失敗しました: ' + (err.message || 'エラー'));
+      })
+      .savePhotoToDrive(base64, item.file.name, item.file.type, car);
+  };
+  reader.readAsDataURL(item.file);
 }
 
 // ---- フォーム送信 ----
 function submitForm() {
   hideAlert();
-  if (uploadingCount > 0) { showAlert('写真のアップロードが完了するまでお待ちください。'); return; }
 
   const car  = document.getElementById('carName').value;
   const date = document.getElementById('date').value;
@@ -427,8 +448,24 @@ function submitForm() {
     if (!document.getElementById('fuelStatus').value) { showAlert('給油状態を選択してください。'); return; }
   }
 
+  document.getElementById('btnSave').disabled = true;
+
+  if (pendingFiles.length > 0) {
+    // 写真を先にアップロードしてから保存
+    uploadNextPendingFile(car, 0, function() {
+      doSaveRecord(car, date, type);
+    });
+  } else {
+    // 写真なし（またはURL入力のみ）
+    doSaveRecord(car, date, type);
+  }
+}
+
+function doSaveRecord(car, date, type) {
+  document.getElementById('btnSaveText').textContent = '保存中...';
+
   const photos = Array.from(document.querySelectorAll('.photo-url'))
-    .map(el => el.value.trim()).filter(Boolean);
+    .map(function(el) { return el.value.trim(); }).filter(Boolean);
 
   const data = {
     carName:    car,
@@ -445,7 +482,6 @@ function submitForm() {
   };
   if (isEdit) data.rowIndex = editData.rowIndex;
 
-  setBtnLoading(true);
   const fn = isEdit
     ? google.script.run.withSuccessHandler(onSaveSuccess).withFailureHandler(onSaveError).updateRecord
     : google.script.run.withSuccessHandler(onSaveSuccess).withFailureHandler(onSaveError).saveRecord;
@@ -453,12 +489,14 @@ function submitForm() {
 }
 
 function onSaveSuccess(result) {
-  setBtnLoading(false);
+  document.getElementById('btnSave').disabled = false;
+  document.getElementById('btnSaveText').textContent = '保存';
   if (result.success) { google.script.host.close(); }
   else { showAlert('保存エラー: ' + result.error); }
 }
 function onSaveError(err) {
-  setBtnLoading(false);
+  document.getElementById('btnSave').disabled = false;
+  document.getElementById('btnSaveText').textContent = '保存';
   showAlert('エラー: ' + (err.message || err));
 }
 
@@ -501,10 +539,6 @@ function showAlert(msg) {
   el.scrollIntoView({ behavior: 'smooth' });
 }
 function hideAlert() { document.getElementById('alertBox').style.display = 'none'; }
-function setBtnLoading(loading) {
-  document.getElementById('btnSaveText').textContent = loading ? '保存中...' : '保存';
-  document.getElementById('btnSave').disabled = loading;
-}
 function escHtml(s) {
   if (!s) return '';
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
