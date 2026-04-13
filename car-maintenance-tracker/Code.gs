@@ -215,7 +215,8 @@ function sortSheetByDate(carName) {
 
 /**
  * 写真ファイルをGoogle Driveに保存
- * スプレッドシートと同じフォルダ内に「写真_車名」フォルダを作成して保存
+ * 設定で指定したフォルダ（未設定時はスプレッドシートと同じフォルダ）内に
+ * 「写真_車名」サブフォルダを作成して保存
  * @param {string} base64Data - Base64エンコードされたファイルデータ
  * @param {string} fileName   - ファイル名
  * @param {string} mimeType   - MIMEタイプ
@@ -224,16 +225,26 @@ function sortSheetByDate(carName) {
  */
 function savePhotoToDrive(base64Data, fileName, mimeType, carName) {
   try {
-    const ss      = SpreadsheetApp.getActiveSpreadsheet();
-    const ssFile  = DriveApp.getFileById(ss.getId());
-    const parents = ssFile.getParents();
-    const parentFolder = parents.hasNext() ? parents.next() : DriveApp.getRootFolder();
+    // 設定からエクスポート先フォルダIDを取得
+    const settings = getSettings();
+    const folderId = settings.exportFolderId ? settings.exportFolderId.trim() : '';
+
+    let parentFolder;
+    if (folderId) {
+      // 設定で指定されたフォルダを使用
+      parentFolder = DriveApp.getFolderById(folderId);
+    } else {
+      // 未設定時はスプレッドシートと同じフォルダ
+      const ss     = SpreadsheetApp.getActiveSpreadsheet();
+      const ssFile = DriveApp.getFileById(ss.getId());
+      const parents = ssFile.getParents();
+      parentFolder = parents.hasNext() ? parents.next() : DriveApp.getRootFolder();
+    }
 
     // 写真用サブフォルダを取得または作成
     const folderName = '写真_' + (carName || '共通');
-    let photoFolder;
-    const folders = parentFolder.getFoldersByName(folderName);
-    photoFolder = folders.hasNext() ? folders.next() : parentFolder.createFolder(folderName);
+    const existing   = parentFolder.getFoldersByName(folderName);
+    const photoFolder = existing.hasNext() ? existing.next() : parentFolder.createFolder(folderName);
 
     // Base64 → Blob → Drive に保存
     const blob = Utilities.newBlob(
