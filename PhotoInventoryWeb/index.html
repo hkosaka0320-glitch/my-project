@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#1976D2">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="在庫管理">
+  <title>写真在庫管理</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="manifest" href="manifest.json">
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════
+     Screen 1: ホーム
+══════════════════════════════════════════════ -->
+<div id="screen-home" class="screen active">
+  <div class="center-content">
+    <div class="app-icon">📦</div>
+    <h1>写真在庫管理</h1>
+    <p class="subtitle">Photo Inventory</p>
+
+    <button id="btn-start-camera" class="btn btn-primary btn-large">
+      📷　撮影して読み込む
+    </button>
+
+    <label class="btn btn-secondary btn-large" style="cursor:pointer">
+      🖼️　画像ファイルを選択
+      <input id="file-input" type="file" accept="image/*" capture="environment" style="display:none">
+    </label>
+
+    <p class="hint-text">※ 初回OCR時は日本語モデル (~12 MB) をダウンロードします</p>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     Screen 2: カメラ
+══════════════════════════════════════════════ -->
+<div id="screen-camera" class="screen">
+  <div class="camera-wrap">
+    <video id="camera-video" autoplay playsinline muted></video>
+    <div class="camera-guide-frame"></div>
+    <button id="btn-camera-close" class="btn-icon camera-close-btn">✕</button>
+  </div>
+  <div class="camera-footer">
+    <div class="camera-hint">書類全体が枠内に収まるように撮影</div>
+    <button id="btn-capture" class="btn-shutter" aria-label="撮影"></button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     Screen 3: OCR 処理中
+══════════════════════════════════════════════ -->
+<div id="screen-ocr" class="screen">
+  <div class="center-content">
+    <div class="spinner"></div>
+    <p id="ocr-status" class="status-text">読み込み中...</p>
+    <div class="progress-track">
+      <div id="ocr-progress-fill" class="progress-fill" style="width:0%"></div>
+    </div>
+    <p id="ocr-progress-pct" class="progress-pct">0%</p>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     Screen 3b: OCR テキスト確認・修正
+══════════════════════════════════════════════ -->
+<div id="screen-verify" class="screen">
+  <header class="app-header">
+    <button class="btn-back" id="btn-verify-back">← 撮り直す</button>
+    <div class="header-info">
+      <h2>OCR結果確認</h2>
+    </div>
+  </header>
+  <div class="screen-body scrollable" style="padding:12px">
+    <p class="info-banner">認識されたテキストを確認・修正してから解析できます</p>
+    <textarea id="ocr-textarea" class="ocr-textarea" spellcheck="false"
+              placeholder="OCRで認識されたテキストがここに表示されます..."></textarea>
+  </div>
+  <footer class="screen-footer row-footer">
+    <button id="btn-verify-back2" class="btn btn-ghost">戻る</button>
+    <button id="btn-parse" class="btn btn-primary" style="flex:2">解析して続ける →</button>
+  </footer>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     Screen 4: 絞り込み（チェックボックス）
+══════════════════════════════════════════════ -->
+<div id="screen-filter" class="screen">
+  <header class="app-header">
+    <button class="btn-back" id="btn-filter-back">← 戻る</button>
+    <div class="header-info">
+      <h2>絞り込み選択</h2>
+      <span id="filter-count" class="badge"></span>
+    </div>
+  </header>
+  <div class="screen-body scrollable">
+
+    <section class="filter-section">
+      <h3 class="section-label">納期</h3>
+      <div id="noki-list" class="checkbox-list"></div>
+    </section>
+
+    <section class="filter-section">
+      <h3 class="section-label">納入先</h3>
+      <div id="nyusaki-list" class="checkbox-list"></div>
+    </section>
+
+  </div>
+  <footer class="screen-footer">
+    <button id="btn-show-result" class="btn btn-primary btn-full">
+      結果を表示　→
+    </button>
+  </footer>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     Screen 5: 抽出結果
+══════════════════════════════════════════════ -->
+<div id="screen-result" class="screen">
+  <header class="app-header">
+    <button class="btn-back" id="btn-result-back">← 戻る</button>
+    <div class="header-info">
+      <h2>抽出結果</h2>
+      <span id="result-count" class="badge"></span>
+    </div>
+  </header>
+  <div class="screen-body scrollable">
+    <ul id="result-list" class="item-list"></ul>
+  </div>
+  <footer class="screen-footer">
+    <button id="btn-ok" class="btn btn-success btn-full">
+      OK　→　集計
+    </button>
+  </footer>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     Screen 6: 集計結果
+══════════════════════════════════════════════ -->
+<div id="screen-summary" class="screen">
+  <header class="app-header">
+    <button class="btn-back" id="btn-summary-back">← 戻る</button>
+    <h2>集計結果</h2>
+  </header>
+  <div class="screen-body scrollable">
+    <pre id="summary-text" class="summary-pre"></pre>
+  </div>
+  <footer class="screen-footer">
+    <button id="btn-home" class="btn btn-primary btn-full">
+      メインに戻る
+    </button>
+  </footer>
+</div>
+
+<!-- Tesseract.js (OCR エンジン) -->
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
