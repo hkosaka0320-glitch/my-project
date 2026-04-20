@@ -1,0 +1,1058 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#1976D2">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="在庫管理">
+  <title>写真在庫管理</title>
+  <style>
+/* ══════════════════════════════════════════════
+   CSS Variables
+══════════════════════════════════════════════ */
+:root {
+  --primary:      #1976D2;
+  --primary-dark: #1565C0;
+  --success:      #2E7D32;
+  --bg:           #F0F4F8;
+  --surface:      #FFFFFF;
+  --text:         #212121;
+  --text-sec:     #757575;
+  --border:       #E0E0E0;
+  --header-h:     56px;
+  --footer-h:     72px;
+  --radius:       10px;
+  --shadow:       0 2px 8px rgba(0,0,0,.12);
+}
+
+/* ══════════════════════════════════════════════
+   Reset & Base
+══════════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+  font-family: 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', 'メイリオ',
+               -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  max-width: 600px;
+  margin: 0 auto;
+  position: relative;
+}
+
+/* ══════════════════════════════════════════════
+   Screen Management
+══════════════════════════════════════════════ */
+.screen {
+  display: none;
+  flex-direction: column;
+  height: 100vh;
+  width: 100%;
+  position: absolute;
+  top: 0; left: 0;
+  background: var(--bg);
+}
+.screen.active { display: flex; }
+
+/* ══════════════════════════════════════════════
+   Center Content (Home / OCR)
+══════════════════════════════════════════════ */
+.center-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 24px;
+  gap: 14px;
+}
+
+.app-icon { font-size: 72px; line-height: 1; }
+
+h1 {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: .5px;
+}
+
+.subtitle {
+  font-size: 13px;
+  color: var(--text-sec);
+  margin-top: -6px;
+}
+
+.hint-text {
+  font-size: 11px;
+  color: var(--text-sec);
+  text-align: center;
+  margin-top: 8px;
+  max-width: 280px;
+  line-height: 1.5;
+}
+
+/* ══════════════════════════════════════════════
+   Buttons
+══════════════════════════════════════════════ */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 20px;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity .15s, transform .1s;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn:active { transform: scale(.96); opacity: .85; }
+
+.btn-primary  { background: var(--primary); color: #fff; }
+.btn-secondary {
+  background: var(--surface);
+  color: var(--primary);
+  border: 2px solid var(--primary);
+}
+.btn-success  { background: var(--success); color: #fff; }
+.btn-ghost    {
+  background: transparent;
+  color: var(--text-sec);
+  border: 1px solid var(--border);
+}
+
+.btn-large {
+  width: 270px;
+  height: 52px;
+  font-size: 15px;
+}
+
+.btn-full { width: 100%; }
+
+.btn-back {
+  background: none;
+  border: none;
+  color: rgba(255,255,255,.9);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 6px 4px;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btn-icon {
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  border: none;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  font-size: 18px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ══════════════════════════════════════════════
+   App Header
+══════════════════════════════════════════════ */
+.app-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: var(--header-h);
+  padding: 0 16px;
+  background: var(--primary);
+  flex-shrink: 0;
+}
+
+.header-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.app-header h2 {
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.badge {
+  background: rgba(255,255,255,.25);
+  color: #fff;
+  padding: 2px 9px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* ══════════════════════════════════════════════
+   Screen Body & Footer
+══════════════════════════════════════════════ */
+.screen-body { flex: 1; overflow: hidden; }
+
+.scrollable {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 16px;
+  height: 100%;
+}
+
+.screen-footer {
+  padding: 12px 16px;
+  background: var(--surface);
+  box-shadow: 0 -2px 8px rgba(0,0,0,.08);
+  flex-shrink: 0;
+}
+
+.row-footer {
+  display: flex;
+  gap: 8px;
+}
+
+/* ══════════════════════════════════════════════
+   Camera Screen
+══════════════════════════════════════════════ */
+.camera-wrap {
+  flex: 1;
+  background: #000;
+  position: relative;
+  overflow: hidden;
+}
+
+#camera-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.camera-guide-frame {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 85%; height: 55%;
+  border: 2px solid rgba(255,255,255,.7);
+  border-radius: 8px;
+  pointer-events: none;
+}
+
+.camera-close-btn {
+  position: absolute;
+  top: 16px; right: 16px;
+  background: rgba(0,0,0,.5);
+  color: #fff;
+}
+
+.camera-footer {
+  height: 130px;
+  background: #111;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.camera-hint {
+  font-size: 12px;
+  color: rgba(255,255,255,.6);
+}
+
+.btn-shutter {
+  width: 72px; height: 72px;
+  border-radius: 50%;
+  background: #fff;
+  border: 5px solid rgba(255,255,255,.4);
+  cursor: pointer;
+  transition: transform .1s;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-shutter:active { transform: scale(.88); }
+
+/* ══════════════════════════════════════════════
+   OCR Progress
+══════════════════════════════════════════════ */
+.spinner {
+  width: 60px; height: 60px;
+  border: 5px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin .9s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.status-text {
+  font-size: 15px;
+  color: var(--text);
+  text-align: center;
+  white-space: pre-line;
+  max-width: 280px;
+  line-height: 1.6;
+}
+
+.progress-track {
+  width: 240px; height: 8px;
+  background: var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--primary);
+  border-radius: 4px;
+  transition: width .3s ease;
+}
+
+.progress-pct {
+  font-size: 13px;
+  color: var(--text-sec);
+}
+
+/* ══════════════════════════════════════════════
+   OCR Verify Screen
+══════════════════════════════════════════════ */
+.info-banner {
+  background: #E3F2FD;
+  color: #1565C0;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  margin-bottom: 12px;
+  line-height: 1.5;
+}
+
+.ocr-textarea {
+  width: 100%;
+  min-height: 280px;
+  padding: 12px;
+  font-size: 13px;
+  font-family: 'Courier New', monospace;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  resize: vertical;
+  background: var(--surface);
+  color: var(--text);
+  line-height: 1.6;
+}
+
+/* ══════════════════════════════════════════════
+   Filter Screen
+══════════════════════════════════════════════ */
+.filter-section { margin-bottom: 24px; }
+
+.section-label {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--primary);
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 2px solid var(--primary);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+}
+
+.checkbox-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.checkbox-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 14px;
+  background: var(--surface);
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-size: 14px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.07);
+  user-select: none;
+}
+
+.checkbox-item input[type="checkbox"] {
+  width: 20px; height: 20px;
+  accent-color: var(--primary);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.empty-msg {
+  color: var(--text-sec);
+  font-size: 13px;
+  padding: 8px 4px;
+}
+
+/* ══════════════════════════════════════════════
+   Result List
+══════════════════════════════════════════════ */
+.item-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.item-card {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  box-shadow: var(--shadow);
+}
+
+.item-hinban {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--primary);
+  margin-bottom: 6px;
+}
+
+.item-detail {
+  font-size: 13px;
+  color: var(--text-sec);
+  margin-top: 3px;
+}
+
+/* ══════════════════════════════════════════════
+   Summary Screen
+══════════════════════════════════════════════ */
+.summary-pre {
+  font-family: 'Courier New', 'Osaka-Mono', monospace;
+  font-size: 15px;
+  line-height: 2;
+  white-space: pre;
+  overflow-x: auto;
+  background: var(--surface);
+  padding: 20px;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+</style>
+  
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════
+     Screen 1: ホーム
+══════════════════════════════════════════════ -->
+<div id="screen-home" class="screen active">
+  <div class="center-content">
+    <div class="app-icon">📦</div>
+    <h1>写真在庫管理</h1>
+    <p class="subtitle">Photo Inventory</p>
+
+    <button id="btn-start-camera" class="btn btn-primary btn-large">
+      📷　撮影して読み込む
+    </button>
+
+    <label class="btn btn-secondary btn-large" style="cursor:pointer">
+      🖼️　画像ファイルを選択
+      <input id="file-input" type="file" accept="image/*" capture="environment" style="display:none">
+    </label>
+
+    <p class="hint-text">※ 初回OCR時は日本語モデル (~12 MB) をダウンロードします</p>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     Screen 2: カメラ
+══════════════════════════════════════════════ -->
+<div id="screen-camera" class="screen">
+  <div class="camera-wrap">
+    <video id="camera-video" autoplay playsinline muted></video>
+    <div class="camera-guide-frame"></div>
+    <button id="btn-camera-close" class="btn-icon camera-close-btn">✕</button>
+  </div>
+  <div class="camera-footer">
+    <div class="camera-hint">書類全体が枠内に収まるように撮影</div>
+    <button id="btn-capture" class="btn-shutter" aria-label="撮影"></button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     Screen 3: OCR 処理中
+══════════════════════════════════════════════ -->
+<div id="screen-ocr" class="screen">
+  <div class="center-content">
+    <div class="spinner"></div>
+    <p id="ocr-status" class="status-text">読み込み中...</p>
+    <div class="progress-track">
+      <div id="ocr-progress-fill" class="progress-fill" style="width:0%"></div>
+    </div>
+    <p id="ocr-progress-pct" class="progress-pct">0%</p>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     Screen 3b: OCR テキスト確認・修正
+══════════════════════════════════════════════ -->
+<div id="screen-verify" class="screen">
+  <header class="app-header">
+    <button class="btn-back" id="btn-verify-back">← 撮り直す</button>
+    <div class="header-info">
+      <h2>OCR結果確認</h2>
+    </div>
+  </header>
+  <div class="screen-body scrollable" style="padding:12px">
+    <p class="info-banner">認識されたテキストを確認・修正してから解析できます</p>
+    <textarea id="ocr-textarea" class="ocr-textarea" spellcheck="false"
+              placeholder="OCRで認識されたテキストがここに表示されます..."></textarea>
+  </div>
+  <footer class="screen-footer row-footer">
+    <button id="btn-verify-back2" class="btn btn-ghost">戻る</button>
+    <button id="btn-parse" class="btn btn-primary" style="flex:2">解析して続ける →</button>
+  </footer>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     Screen 4: 絞り込み（チェックボックス）
+══════════════════════════════════════════════ -->
+<div id="screen-filter" class="screen">
+  <header class="app-header">
+    <button class="btn-back" id="btn-filter-back">← 戻る</button>
+    <div class="header-info">
+      <h2>絞り込み選択</h2>
+      <span id="filter-count" class="badge"></span>
+    </div>
+  </header>
+  <div class="screen-body scrollable">
+
+    <section class="filter-section">
+      <h3 class="section-label">納期</h3>
+      <div id="noki-list" class="checkbox-list"></div>
+    </section>
+
+    <section class="filter-section">
+      <h3 class="section-label">納入先</h3>
+      <div id="nyusaki-list" class="checkbox-list"></div>
+    </section>
+
+  </div>
+  <footer class="screen-footer">
+    <button id="btn-show-result" class="btn btn-primary btn-full">
+      結果を表示　→
+    </button>
+  </footer>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     Screen 5: 抽出結果
+══════════════════════════════════════════════ -->
+<div id="screen-result" class="screen">
+  <header class="app-header">
+    <button class="btn-back" id="btn-result-back">← 戻る</button>
+    <div class="header-info">
+      <h2>抽出結果</h2>
+      <span id="result-count" class="badge"></span>
+    </div>
+  </header>
+  <div class="screen-body scrollable">
+    <ul id="result-list" class="item-list"></ul>
+  </div>
+  <footer class="screen-footer">
+    <button id="btn-ok" class="btn btn-success btn-full">
+      OK　→　集計
+    </button>
+  </footer>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     Screen 6: 集計結果
+══════════════════════════════════════════════ -->
+<div id="screen-summary" class="screen">
+  <header class="app-header">
+    <button class="btn-back" id="btn-summary-back">← 戻る</button>
+    <h2>集計結果</h2>
+  </header>
+  <div class="screen-body scrollable">
+    <pre id="summary-text" class="summary-pre"></pre>
+  </div>
+  <footer class="screen-footer">
+    <button id="btn-home" class="btn btn-primary btn-full">
+      メインに戻る
+    </button>
+  </footer>
+</div>
+
+<!-- Tesseract.js (OCR エンジン) -->
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script>
+'use strict';
+
+// ═══════════════════════════════════════════════════════════════════════════
+// State
+// ═══════════════════════════════════════════════════════════════════════════
+const state = {
+    sessionId: null,
+    items: [],           // 品番フィルタ済みアイテム (OCR→解析後)
+    selectedNoki: new Set(),
+    selectedNyusaki: new Set(),
+    filteredItems: [],   // 納期・納入先チェック後の絞り込み結果
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Screen navigation
+// ═══════════════════════════════════════════════════════════════════════════
+function showScreen(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Camera (手順1: 撮影)
+// ═══════════════════════════════════════════════════════════════════════════
+let cameraStream = null;
+
+async function openCamera() {
+    showScreen('screen-camera');
+    try {
+        cameraStream = await navigator.mediaDevices.getUserMedia({
+            video: {
+                facingMode: { ideal: 'environment' },
+                width:  { ideal: 1920 },
+                height: { ideal: 1080 },
+            }
+        });
+        document.getElementById('camera-video').srcObject = cameraStream;
+    } catch (err) {
+        stopCamera();
+        showScreen('screen-home');
+        alert('カメラを起動できませんでした。\nファイル選択をお使いください。\n\n' + err.message);
+    }
+}
+
+function stopCamera() {
+    if (cameraStream) {
+        cameraStream.getTracks().forEach(t => t.stop());
+        cameraStream = null;
+    }
+}
+
+function captureFromVideo() {
+    const video = document.getElementById('camera-video');
+    const canvas = document.createElement('canvas');
+    canvas.width  = video.videoWidth  || 1280;
+    canvas.height = video.videoHeight || 720;
+    canvas.getContext('2d').drawImage(video, 0, 0);
+    stopCamera();
+    return canvas;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// OCR — Tesseract.js (手順2: 内容読み込み)
+// ※ 初回はブラウザが日本語モデル (~12 MB) をダウンロードし IndexedDB にキャッシュ
+// ═══════════════════════════════════════════════════════════════════════════
+async function runOcr(imageSource) {
+    showScreen('screen-ocr');
+    setOcrStatus('OCR エンジン初期化中...');
+    setOcrPct(0);
+
+    try {
+        const result = await Tesseract.recognize(
+            imageSource,
+            'jpn+eng',   // 日本語 + 英数字（品番対応）
+            {
+                logger: m => {
+                    switch (m.status) {
+                        case 'loading tesseract core':
+                            setOcrStatus('Tesseract コア読み込み中...'); break;
+                        case 'loading language traineddata':
+                            setOcrStatus('日本語モデル読み込み中...\n（初回のみ数十秒かかります）'); break;
+                        case 'initializing tesseract':
+                        case 'initializing api':
+                            setOcrStatus('初期化中...'); break;
+                        case 'recognizing text':
+                            setOcrStatus('テキスト認識中...');
+                            setOcrPct(Math.round(m.progress * 100));
+                            break;
+                    }
+                }
+            }
+        );
+        // OCR 完了 → 確認画面へ
+        document.getElementById('ocr-textarea').value = result.data.text;
+        showScreen('screen-verify');
+
+    } catch (err) {
+        setOcrStatus('エラー: ' + err.message);
+        setTimeout(() => showScreen('screen-home'), 4000);
+    }
+}
+
+function setOcrStatus(msg) {
+    document.getElementById('ocr-status').textContent = msg;
+}
+
+function setOcrPct(pct) {
+    document.getElementById('ocr-progress-fill').style.width = pct + '%';
+    document.getElementById('ocr-progress-pct').textContent  = pct + '%';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Text Parser
+// ═══════════════════════════════════════════════════════════════════════════
+
+// 品番パターン: ????T?(200-650)
+// 例: ABCDT1350, XYZWTA500
+const HINBAN_RE = /[A-Z0-9]{4}T[A-Z0-9]([2-5]\d{2}|6[0-4]\d|650)/i;
+
+/**
+ * OCR テキストをアイテム配列に変換する。
+ * 優先: タブ/スペース区切りの表形式 → キー値形式 → 品番スキャン
+ */
+function parseOcrText(text) {
+    const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+    if (!lines.length) return [];
+
+    const headerIdx = lines.findIndex(l =>
+        l.includes('品番') || l.includes('ヒンバン') || l.includes('品　番')
+    );
+
+    if (headerIdx >= 0) return parseTableFormat(lines, headerIdx);
+
+    const kvItems = parseKeyValueFormat(lines);
+    if (kvItems.length) return kvItems;
+
+    return scanForPartNumbers(lines); // 最終フォールバック
+}
+
+// ── 表形式パーサー ──────────────────────────────────────────────────────────
+function parseTableFormat(lines, headerIdx) {
+    const headers = splitCols(lines[headerIdx]);
+
+    const idxOf = (...keywords) =>
+        headers.findIndex(h => keywords.some(k => h.includes(k)));
+
+    const naiCol     = idxOf('内');
+    const hinbanCol  = idxOf('品番', 'ヒンバン');
+    const nokiCol    = idxOf('納期');
+    const nyusakiCol = idxOf('納入先', '納先', '納入');
+
+    const items = [];
+    for (let i = headerIdx + 1; i < lines.length; i++) {
+        const cols = splitCols(lines[i]);
+        if (!cols.length) continue;
+
+        const nai     = cols[naiCol]     || '';
+        const hinban  = cols[hinbanCol]  || '';
+        const noki    = cols[nokiCol]    || '';
+        const nyusaki = cols[nyusakiCol] || '';
+
+        if (nai.startsWith('NL:')) continue;   // 手順3: NL: 行削除
+        if (!hinban) continue;
+
+        items.push({ nai, hinban, noki, nyusaki });
+    }
+    return items;
+}
+
+// ── キー値形式パーサー ────────────────────────────────────────────────────
+function parseKeyValueFormat(lines) {
+    const items = [];
+    let cur = { nai: '', hinban: '', noki: '', nyusaki: '' };
+
+    const flush = () => {
+        if (cur.hinban && !cur.nai.startsWith('NL:')) {
+            items.push({ ...cur });
+        }
+        cur = { nai: '', hinban: '', noki: '', nyusaki: '' };
+    };
+
+    for (const line of lines) {
+        if      (/^内\s*[：:]/.test(line))      cur.nai     = extractVal(line);
+        else if (/^品番\s*[：:]/.test(line))     { flush(); cur.hinban  = extractVal(line); }
+        else if (/^納期\s*[：:]/.test(line))     cur.noki    = extractVal(line);
+        else if (/^納入先\s*[：:]/.test(line))   { cur.nyusaki = extractVal(line); flush(); }
+        else {
+            const m = HINBAN_RE.exec(line.toUpperCase());
+            if (m) { flush(); cur.hinban = m[0].toUpperCase(); }
+        }
+    }
+    flush();
+    return items;
+}
+
+// ── 品番スキャン (フォールバック) ─────────────────────────────────────────
+function scanForPartNumbers(lines) {
+    const items = [];
+    for (const line of lines) {
+        const m = HINBAN_RE.exec(line.toUpperCase());
+        if (!m) continue;
+        const hinban = m[0].toUpperCase();
+        // 同じ行に日付パターンがあれば納期として取得
+        const dateM = line.match(/\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2}|\d{2}[\/\-]\d{1,2}[\/\-]\d{1,2}/);
+        items.push({ hinban, nai: '', noki: dateM ? dateM[0] : '', nyusaki: '' });
+    }
+    return items;
+}
+
+// ── 手順4: 品番フィルタ ─────────────────────────────────────────────────────
+function filterByPartNumber(items) {
+    return items.filter(item => HINBAN_RE.test((item.hinban || '').toUpperCase()));
+}
+
+// ── 手順7: 品番末尾数字ごとに集計 ──────────────────────────────────────────
+function aggregateBySuffix(items) {
+    const counts = {};
+    for (const item of items) {
+        const m = HINBAN_RE.exec((item.hinban || '').toUpperCase());
+        if (!m) continue;
+        const suffix = m[1];
+        counts[suffix] = (counts[suffix] || 0) + 1;
+    }
+    return Object.entries(counts).sort((a, b) => Number(a[0]) - Number(b[0]));
+}
+
+// ── ユーティリティ ─────────────────────────────────────────────────────────
+function splitCols(line) {
+    return line.split(/\t|\s{2,}|[|｜,，]/).map(s => s.trim()).filter(Boolean);
+}
+
+function extractVal(line) {
+    return line.replace(/^[^：:]+[：:]/, '').trim();
+}
+
+function esc(str) {
+    return (str || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// OCR テキスト確認 → 解析実行
+// ═══════════════════════════════════════════════════════════════════════════
+function parseAndFilter() {
+    const text = document.getElementById('ocr-textarea').value.trim();
+    if (!text) {
+        alert('テキストが空です。OCRを再実行するか、テキストを入力してください。');
+        return;
+    }
+
+    const parsed   = parseOcrText(text);
+    const filtered = filterByPartNumber(parsed); // 手順4
+
+    if (!filtered.length) {
+        alert('該当する品番 (????T?200〜650) が見つかりませんでした。\nOCR結果を確認・修正してください。');
+        return;
+    }
+
+    state.sessionId = Date.now();
+    state.items     = filtered;
+    state.selectedNoki.clear();
+    state.selectedNyusaki.clear();
+
+    saveSession(state.sessionId, filtered);
+    renderFilterScreen(filtered);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Filter Screen — 手順5: 納期・納入先チェックボックス（重複なし）
+// ═══════════════════════════════════════════════════════════════════════════
+function renderFilterScreen(items) {
+    const uniq = (key) =>
+        [...new Set(items.map(i => i[key]).filter(Boolean))].sort();
+
+    renderCheckboxList('noki-list',    uniq('noki'),    state.selectedNoki);
+    renderCheckboxList('nyusaki-list', uniq('nyusaki'), state.selectedNyusaki);
+
+    document.getElementById('filter-count').textContent = `${items.length} 件`;
+    showScreen('screen-filter');
+}
+
+function renderCheckboxList(containerId, options, selectedSet) {
+    const container = document.getElementById(containerId);
+    container.innerHTML = '';
+
+    if (!options.length) {
+        container.innerHTML = '<p class="empty-msg">（データなし）</p>';
+        return;
+    }
+
+    options.forEach(opt => {
+        const label = document.createElement('label');
+        label.className = 'checkbox-item';
+
+        const cb = document.createElement('input');
+        cb.type    = 'checkbox';
+        cb.value   = opt;
+        cb.checked = selectedSet.has(opt);
+        cb.addEventListener('change', () => {
+            cb.checked ? selectedSet.add(opt) : selectedSet.delete(opt);
+        });
+
+        const span = document.createElement('span');
+        span.textContent = opt;
+
+        label.appendChild(cb);
+        label.appendChild(span);
+        container.appendChild(label);
+    });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Result Screen — 手順6: チェック済みのデータを表示
+// ═══════════════════════════════════════════════════════════════════════════
+function renderResultScreen() {
+    const { selectedNoki, selectedNyusaki, items } = state;
+
+    if (!selectedNoki.size && !selectedNyusaki.size) {
+        alert('納期または納入先を1つ以上選択してください。');
+        return;
+    }
+
+    state.filteredItems = items.filter(item => {
+        const nokiOk    = !selectedNoki.size    || selectedNoki.has(item.noki);
+        const nyusakiOk = !selectedNyusaki.size || selectedNyusaki.has(item.nyusaki);
+        return nokiOk && nyusakiOk;
+    });
+
+    const list = document.getElementById('result-list');
+    list.innerHTML = '';
+
+    state.filteredItems.forEach(item => {
+        const li = document.createElement('li');
+        li.innerHTML = `
+            <div class="item-card">
+                <div class="item-hinban">${esc(item.hinban)}</div>
+                ${item.noki    ? `<div class="item-detail">納期: ${esc(item.noki)}</div>`    : ''}
+                ${item.nyusaki ? `<div class="item-detail">納入先: ${esc(item.nyusaki)}</div>` : ''}
+                ${item.nai     ? `<div class="item-detail">内: ${esc(item.nai)}</div>`         : ''}
+            </div>
+        `;
+        list.appendChild(li);
+    });
+
+    document.getElementById('result-count').textContent = `${state.filteredItems.length} 件`;
+    showScreen('screen-result');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Summary Screen — 手順7: 品番末尾数字ごとに個数集計
+// ═══════════════════════════════════════════════════════════════════════════
+function renderSummaryScreen() {
+    const agg   = aggregateBySuffix(state.filteredItems);
+    const total = agg.reduce((s, [, c]) => s + c, 0);
+
+    const pad = (s, n) => String(s).padStart(n, ' ');
+
+    let out = '━━━━━━━━━━━━━━━━━━━━━━━━━━\n';
+    out    += '  品番 集計結果\n';
+    out    += '━━━━━━━━━━━━━━━━━━━━━━━━━━\n';
+
+    if (!agg.length) {
+        out += '  （該当データなし）\n';
+    } else {
+        agg.forEach(([suffix, count]) => {
+            out += `  ????T?${suffix.padEnd(3)}  :  ${pad(count, 4)} 個\n`;
+        });
+        out += '──────────────────────────\n';
+        out += `  合　計       :  ${pad(total, 4)} 個\n`;
+    }
+
+    out += '━━━━━━━━━━━━━━━━━━━━━━━━━━\n';
+    document.getElementById('summary-text').textContent = out;
+    showScreen('screen-summary');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Storage — localStorage にセッションを保存（端末内）
+// ═══════════════════════════════════════════════════════════════════════════
+function saveSession(sessionId, items) {
+    try {
+        localStorage.setItem(`inv_${sessionId}`, JSON.stringify(items));
+
+        const index = JSON.parse(localStorage.getItem('inv_sessions') || '[]');
+        index.unshift({ id: sessionId, ts: Date.now(), count: items.length });
+        // 直近50セッションのみ保持
+        localStorage.setItem('inv_sessions', JSON.stringify(index.slice(0, 50)));
+    } catch (e) {
+        console.warn('[Storage] 保存失敗:', e);
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Event Wiring
+// ═══════════════════════════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+
+    // ── ホーム ────────────────────────────────────────────────────────────
+    document.getElementById('btn-start-camera').addEventListener('click', openCamera);
+
+    document.getElementById('file-input').addEventListener('change', e => {
+        const file = e.target.files[0];
+        if (!file) return;
+        e.target.value = '';  // 同ファイル再選択を許可
+        runOcr(URL.createObjectURL(file));
+    });
+
+    // ── カメラ ────────────────────────────────────────────────────────────
+    document.getElementById('btn-camera-close').addEventListener('click', () => {
+        stopCamera();
+        showScreen('screen-home');
+    });
+
+    document.getElementById('btn-capture').addEventListener('click', () => {
+        const canvas = captureFromVideo();
+        runOcr(canvas);
+    });
+
+    // ── OCR 確認 ──────────────────────────────────────────────────────────
+    document.getElementById('btn-verify-back').addEventListener('click', () => {
+        showScreen('screen-home');
+    });
+    document.getElementById('btn-verify-back2').addEventListener('click', () => {
+        showScreen('screen-home');
+    });
+    document.getElementById('btn-parse').addEventListener('click', parseAndFilter);
+
+    // ── 絞り込み ──────────────────────────────────────────────────────────
+    document.getElementById('btn-filter-back').addEventListener('click', () => {
+        showScreen('screen-verify');
+    });
+    document.getElementById('btn-show-result').addEventListener('click', renderResultScreen);
+
+    // ── 抽出結果 ──────────────────────────────────────────────────────────
+    document.getElementById('btn-result-back').addEventListener('click', () => {
+        showScreen('screen-filter');
+    });
+    document.getElementById('btn-ok').addEventListener('click', renderSummaryScreen);
+
+    // ── 集計 ──────────────────────────────────────────────────────────────
+    document.getElementById('btn-summary-back').addEventListener('click', () => {
+        showScreen('screen-result');
+    });
+    document.getElementById('btn-home').addEventListener('click', () => {
+        state.items = [];
+        state.filteredItems = [];
+        state.selectedNoki.clear();
+        state.selectedNyusaki.clear();
+        document.getElementById('ocr-textarea').value = '';
+        showScreen('screen-home');
+    });
+
+    // ── Service Worker 登録 (PWA) ─────────────────────────────────────────
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('./sw.js').catch(() => {});
+    }
+});
+
+</script>
+</body>
+</html>
